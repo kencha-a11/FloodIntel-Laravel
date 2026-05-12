@@ -6,8 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log; // Inimport natin ito
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -65,7 +64,6 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         Log::info("--- Login Process Started ---");
-        // I-log natin lahat ng pumasok para makita kung empty ba talaga sa side ng server
         Log::info("Request Data: ", $request->except(['password']));
 
         try {
@@ -123,9 +121,19 @@ class AuthController extends Controller
 
         try {
             $user = $request->user();
-            $userId = $user->id;
 
+            // 1. Check kung may authenticated user
+            if (!$user) {
+                Log::warning("Logout Attempt: No authenticated user found.");
+                return response()->json([
+                    'message' => 'Already logged out or session expired.'
+                ], 401);
+            }
+
+            $userId = $user->id;
             Log::info("Step 1: Revoking token for User ID: {$userId}");
+
+            // 2. I-delete ang kasalukuyang token
             $user->currentAccessToken()->delete();
 
             Log::info("--- Logout Process Completed: User ID {$userId} ---");

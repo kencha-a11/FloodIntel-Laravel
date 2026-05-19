@@ -7,26 +7,27 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        Log::info("--- Register Process Started ---");
+        Log::info("--- API Register Process Started (Web/Mobile) ---");
         Log::info("Request Data: ", $request->except(['password', 'password_confirmation']));
 
         try {
-            // 1. Validation
-            Log::info("Step 1: Validating input fields...");
+            // Step 1: Input Validation
+            Log::info("Step 1: Validating registration input fields...");
             $fields = $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|unique:users,email',
                 'password' => 'required|string|min:8|confirmed'
             ]);
-            Log::info("Validation successful for: " . $fields['email']);
+            Log::info("Validation successful for email: " . $fields['email']);
 
-            // 2. Create User
-            Log::info("Step 2: Creating user in database...");
+            // Step 2: Database Record Insertion
+            Log::info("Step 2: Creating user profile inside database...");
             $user = User::create([
                 'name' => $fields['name'],
                 'email' => $fields['email'],
@@ -34,110 +35,131 @@ class AuthController extends Controller
             ]);
             Log::info("User created successfully: ID {$user->id}");
 
-            // 3. Create Token (Sanctum)
-            Log::info("Step 3: Generating Sanctum token...");
+            // Step 3: Sanctum Token Issuance
+            Log::info("Step 3: Generating Sanctum plain text token...");
             $token = $user->createToken('floodintel_token')->plainTextToken;
             Log::info("Generated Token for User {$user->email}: {$token}");
 
-            Log::info("--- Register Process Completed Successfully ---");
+            Log::info("--- API Register Process Completed Successfully ---");
 
-            // Log the user into the local web session state for Blade testing
-            auth()->login($user);
+            return response()->json([
+                'success' => true,
+                'message' => 'Account registered successfully!',
+                'data' => [
+                    'user' => $user,
+                    'auth_token' => $token
+                ]
+            ], 201);
 
-            return redirect()->route('dashboard')->with([
-                'status' => 'Account registered and logged in successfully!',
-                'auth_token' => $token
-            ]);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error("Registration Validation Failed: ", $e->errors());
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], 422);
 
-            // Redirect back to the form with the validation errors and old input
-            return redirect()->back()->withErrors($e->errors())->withInput();
         } catch (\Exception $e) {
             Log::error("Registration Error: " . $e->getMessage());
-            return redirect()->back()->with('error', 'Something went wrong during registration.')->withInput();
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong during registration.'
+            ], 500);
         }
     }
 
     public function login(Request $request)
     {
-        Log::info("--- Login Process Started ---");
+        Log::info("--- API Login Process Started (Web/Mobile) ---");
         Log::info("Request Data: ", $request->except(['password']));
 
         try {
-            // 1. Validation
-            Log::info("Step 1: Validating login fields...");
+            // Step 1: Input Validation
+            Log::info("Step 1: Validating login credentials...");
             $fields = $request->validate([
                 'email' => 'required|string|email',
                 'password' => 'required|string'
             ]);
             Log::info("Validation successful for email: " . $fields['email']);
 
-            // 2. Verify email
-            Log::info("Step 2: Checking user existence...");
+            // Step 2: Fetch User Record
+            Log::info("Step 2: Querying user identity match from database...");
             $user = User::where('email', $fields['email'])->first();
 
-            // 3. Verify password
-            Log::info("Step 3: Verifying password hash...");
+            // Step 3: Password Verification Check
+            Log::info("Step 3: Verifying crypt password hash integration...");
             if (!$user || !Hash::check($fields['password'], $user->password)) {
-                Log::warning("Login failed: Invalid credentials for email " . $fields['email']);
-
-                return redirect()->back()->withErrors([
-                    'email' => 'The provided credentials do not match our records.'
-                ])->withInput();
+                Log::warning("Login failed: Invalid credentials matching for email " . $fields['email']);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The provided credentials do not match our records.'
+                ], 401);
             }
 
-            // 4. Create token (Sanctum)
-            Log::info("Step 4: Generating Sanctum token...");
+            // Step 4: Sanctum Token Issuance
+            Log::info("Step 4: Compiling dynamic application token access rights...");
             $token = $user->createToken('floodintel_token')->plainTextToken;
             Log::info("Generated Token for User {$user->email}: {$token}");
 
-            Log::info("--- Login Process Completed: User ID {$user->id} ---");
+            Log::info("--- API Login Process Completed: User ID {$user->id} ---");
 
-            // Log the user into the local web session state for Blade testing
-            auth()->login($user);
+            return response()->json([
+                'success' => true,
+                'message' => 'Logged in successfully!',
+                'data' => [
+                    'user' => $user,
+                    'auth_token' => $token
+                ]
+            ], 200);
 
-            return redirect()->route('dashboard')->with([
-                'status' => 'Logged in successfully!',
-                'auth_token' => $token
-            ]);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error("Login Validation Failed: ", $e->errors());
-            return redirect()->back()->withErrors($e->errors())->withInput();
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], 422);
+
         } catch (\Exception $e) {
             Log::error("Login Error: " . $e->getMessage());
-            return redirect()->back()->with('error', 'Something went wrong during login.')->withInput();
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong during login.'
+            ], 500);
         }
     }
 
     public function logout(Request $request)
     {
-        Log::info("--- Logout Process Started ---");
+        Log::info("--- API Logout Process Started (Web/Mobile) ---");
         try {
             $user = $request->user();
 
-            // 1. Revoke Sanctum Token kung meron
             if ($user) {
-                Log::info("Step 1: Revoking current access token for User ID: {$user->id}");
+                // Step 1: Revoke Current Bearer Access Token
+                Log::info("Step 1: Revoking active access token database key for User ID: {$user->id}");
                 $user->currentAccessToken()->delete();
+
+                Log::info("--- API Logout Process Completed Successfully ---");
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Successfully logged out and token revoked.'
+                ], 200);
             }
 
-            // 2. Linisin ang Stateful Web Session at Cookies
-            Log::info("Step 2: Invalidating browser session cookie records...");
-            auth()->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            Log::info("--- Logout Process Completed Successfully ---");
-
-            // ANG SULUSYON: Lagyan ng RETURN para ma-execute ang redirection sa browser!
-            return redirect('/login')->with('status', 'Successfully logged out.');
+            Log::warning("Logout attempt failed: No authenticated user token found in request payload header.");
+            return response()->json([
+                'success' => false,
+                'message' => 'Not authenticated.'
+            ], 401);
 
         } catch (\Exception $e) {
             Log::error("Logout Error: " . $e->getMessage());
-            return redirect('/login')->with('status', 'Successfully logged out.');
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during logout.'
+            ], 500);
         }
     }
 }

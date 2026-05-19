@@ -15,4 +15,6 @@ Route::prefix('test')->group(function () {
 
     // gawa ka ng route para sa example data retrieval dito
     // Route::get('/users', [UserController::class, 'index']);
+
+    
 });

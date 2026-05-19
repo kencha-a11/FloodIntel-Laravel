@@ -1,6 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\Auth\SocialAuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -13,12 +14,24 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::post('/register', [AuthController::class, 'register'])->name('auth.v1.register');
+Route::prefix('auth')->group(function () {
 
-Route::post('/login', [AuthController::class, 'login'])->name('auth.v1.login');
+    // 1. Public Native Auth Routes (URL: api/v1/auth/register & login)
+    Route::post('/register', [AuthController::class, 'register'])->name('auth.v1.register');
+    Route::post('/login', [AuthController::class, 'login'])->name('auth.v1.login');
 
-Route::middleware('auth:sanctum')->group(function () {
-    });
-    Route::post('/logout', [AuthController::class, 'logout'])->name('auth.v1.logout');
+    // 2. Protected Native Auth Routes (URL: api/v1/auth/logout)
+    // Route::middleware('auth:sanctum')->group(function () {
+    //     Route::post('/logout', [AuthController::class, 'logout'])->name('auth.v1.logout');
+    // });
 
-// Features: Google Socialite: Facebook, Google accounts
+    // 3. Socialite OAuth Routes (URL: api/v1/auth/{provider} & callback)
+    Route::get('/{provider}', [SocialAuthController::class, 'redirectToProvider'])
+        ->where('provider', 'google')
+        ->name('auth.v1.social.redirect');
+
+    Route::get('/{provider}/callback', [SocialAuthController::class, 'handleProviderCallback'])
+        ->where('provider', 'google')
+        ->name('auth.v1.social.callback');
+
+});

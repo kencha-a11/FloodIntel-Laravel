@@ -10,9 +10,9 @@ Route::prefix('test')->group(function () {
     })->name('test.simulation');
 
     // Gamitin ang class name para iwas typo
-    Route::get('/flood-points', [BarangayController::class, 'getSpecificFloodPoints']);
+    // Route::get('/flood-points', [BarangayController::class, 'getSpecificFloodPoints']);
 
 
     // gawa ka ng route para sa example data retrieval dito
-    Route::get('/users', [UserController::class, 'index']);
+    // Route::get('/users', [UserController::class, 'index']);
 });

@@ -30,7 +30,6 @@ class ServerController extends Controller
     public function register(Request $request)
     {
         Log::info("--- Server Register Process Started ---");
-        Log::info("Request Data: ", $request->except(['password', 'password_confirmation']));
 
         try {
             Log::info("Step 1: Validating registration input fields...");
@@ -39,7 +38,6 @@ class ServerController extends Controller
                 'email' => 'required|string|email|unique:users,email',
                 'password' => 'required|string|min:8|confirmed'
             ]);
-            Log::info("Validation successful for email: " . $fields['email']);
 
             Log::info("Step 2: Creating user record in database...");
             $user = User::create([
@@ -49,24 +47,29 @@ class ServerController extends Controller
                 'provider_name' => 'email',
                 'provider_id' => null,
             ]);
-            Log::info("User created successfully: ID {$user->id}");
+
+            // --- BAGONG DUGTONG (Automatic Login) ---
+            Log::info("Step 2.5: Auto-logging in the user...");
+            auth()->login($user);
+            // ----------------------------------------
 
             Log::info("Step 3: Triggering email verification event...");
             event(new Registered($user));
 
-            Log::info("--- Server Register Process Completed (Verification Sent) ---");
+            Log::info("--- Server Register Process Completed ---");
 
+            // Redirect sa notice page; dahil naka-login na sila,
+            // gagana na ang auth() middleware sa mga susunod na steps.
             return redirect()->route('verification.notice')
                 ->with('status', 'Account created! Please check your email to verify.');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // Hiwalay na log para sa validation errors
             Log::warning("Registration Validation Failed: ", $e->errors());
             return redirect()->back()->withErrors($e->errors())->withInput();
 
         } catch (\Exception $e) {
             Log::error("Registration Error: " . $e->getMessage());
-            return redirect()->back()->with('error', 'Something went wrong. Please try again.')->withInput();
+            return redirect()->back()->with('error', 'Something went wrong.')->withInput();
         }
     }
 
@@ -82,8 +85,16 @@ class ServerController extends Controller
 
             $user = User::where('email', $fields['email'])->first();
 
+            // 1. Check kung may user at tama ang password
             if (!$user || !Hash::check($fields['password'], $user->password)) {
                 return redirect()->back()->withErrors(['email' => 'Invalid credentials.'])->withInput();
+            }
+
+            // 2. CHECK: Verified ba ang email?
+            if (!$user->hasVerifiedEmail()) {
+                Log::warning("Login attempt for unverified email: " . $user->email);
+                return redirect()->route('verification.notice')
+                    ->with('error', 'Please verify your email address before logging in.');
             }
 
             auth()->login($user);
@@ -124,6 +135,12 @@ class ServerController extends Controller
             Log::error("Google Callback Error: " . $e->getMessage());
             return redirect()->route('server.login_view')->with('error', 'Google login failed.');
         }
+    }
+
+    public function redirectToGoogle()
+    {
+        Log::info("--- Redirecting to Google Auth ---");
+        return Socialite::driver('google')->redirect();
     }
 
     public function logout(Request $request)

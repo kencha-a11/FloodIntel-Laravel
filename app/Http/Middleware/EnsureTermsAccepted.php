@@ -17,21 +17,22 @@ class EnsureTermsAccepted
     {
         $user = auth()->user();
 
-        // 1. Blade Template Approach (Pang-test)
-        // I-uncomment ito kung gusto mong gumamit ng redirect (Blade/Web)
-        if (auth()->check() && !$user->terms_accepted_at) {
-            return redirect()->route('server.terms.show');
+        if ($user && is_null($user->terms_accepted_at)) {
+
+            // Check kung ang request ay nanggaling sa API (o kailangan ng JSON)
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'message' => 'Terms and conditions not accepted.',
+                    'requires_terms_acceptance' => true,
+                ], 428);
+            }
+
+            // Kung hindi API, ibig sabihin ay Web (Blade)
+            // Siguraduhin na hindi mag-i-infinite loop
+            if (!$request->routeIs('server.terms.*')) {
+                return redirect()->route('server.terms.show');
+            }
         }
-
-
-        // 2. React / React Native / API Approach (Production)
-        // Ito ang gamitin para sa iyong main project
-        // if ($user && !$user->terms_accepted_at) {
-        //     return response()->json([
-        //         'message' => 'Terms and conditions not accepted.',
-        //         'requires_terms_acceptance' => true,
-        //     ], 428);
-        // }
 
         return $next($request);
     }

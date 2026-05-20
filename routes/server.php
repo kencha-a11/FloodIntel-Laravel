@@ -9,18 +9,19 @@ Route::middleware(['web'])->group(function () {
 
     // 1. GUEST ROUTES: Para sa mga users na hindi pa naka-login
     Route::middleware('guest')->group(function () {
-        Route::get('/login', [ServerController::class, 'showLogin'])->name('server.login_view');
+        Route::get('/login', [ServerController::class, 'showLogin'])->name('login'); // Ginawang 'login' para sa middleware
         Route::post('/login', [ServerController::class, 'login'])->name('server.login');
         Route::post('/register', [ServerController::class, 'register'])->name('server.register');
 
-        // Google Auth
+        // Google Auth Redirect
         Route::get('/google', [ServerController::class, 'redirectToGoogle'])->name('server.google.redirect');
-        Route::get('/google/callback', [ServerController::class, 'handleGoogleCallback'])->name('server.google.callback');
     });
 
-    // 2. AUTH ROUTES: Para sa mga users na naka-login na
-    Route::middleware('auth')->group(function () {
+    // 2. CALLBACK ROUTE: Labas sa 'guest' middleware para maiwasan ang loop
+    Route::get('/google/callback', [ServerController::class, 'handleGoogleCallback'])->name('server.google.callback');
 
+    // 3. AUTH ROUTES: Para sa mga users na naka-login na
+    Route::middleware('auth')->group(function () {
         // Logout
         Route::post('/logout', [ServerController::class, 'logout'])->name('server.logout');
 
@@ -35,16 +36,15 @@ Route::middleware(['web'])->group(function () {
             return redirect()->route('server.dashboard');
         })->middleware('signed')->name('verification.verify');
 
-        // Resend Verification Email (Para hindi ma-stuck ang user)
+        // Resend Verification Email
         Route::post('/email/verification-notification', function (Request $request) {
             $request->user()->sendEmailVerificationNotification();
             return back()->with('message', 'Verification link sent!');
         })->middleware('throttle:6,1')->name('verification.send');
     });
 
-    // 3. PROTECTED ROUTES: Kailangan login + verified email
+    // 4. PROTECTED ROUTES: Kailangan login + verified email
     Route::get('/dashboard', [ServerController::class, 'showDashboard'])
         ->middleware(['auth', 'verified'])
         ->name('server.dashboard');
-
 });

@@ -115,6 +115,15 @@ class ServerController extends Controller
         try {
             $socialUser = Socialite::driver('google')->user();
 
+            // Fix 2: Prevent overwriting existing email/password accounts
+            $existingUser = User::where('email', $socialUser->getEmail())->first();
+
+            if ($existingUser && $existingUser->provider_name === 'email') {
+                Log::warning("Google login blocked: Email already exists as local account: " . $existingUser->email);
+                return redirect()->route('login')
+                    ->with('error', 'An account with this email already exists. Please log in with your password.');
+            }
+
             $user = User::updateOrCreate(
                 ['email' => $socialUser->getEmail()],
                 [
@@ -122,25 +131,26 @@ class ServerController extends Controller
                     'provider_name' => 'google',
                     'provider_id' => $socialUser->getId(),
                     'password' => Hash::make(Str::random(32)),
-                    'email_verified_at' => now(), // AUTO-VERIFIED
+                    'email_verified_at' => now(),
                 ]
             );
 
             auth()->login($user);
 
-            Log::info("--- Google Callback Completed (Auto-Verified) ---");
+            Log::info("--- Google Callback Completed ---");
             return redirect()->route('server.dashboard')->with('status', 'Logged in with Google!');
 
         } catch (\Exception $e) {
             Log::error("Google Callback Error: " . $e->getMessage());
-            return redirect()->route('server.login_view')->with('error', 'Google login failed.');
+            return redirect()->route('login')->with('error', 'Google login failed.');
         }
     }
 
     public function redirectToGoogle()
     {
-        Log::info("--- Redirecting to Google Auth ---");
-        return Socialite::driver('google')->redirect();
+        $redirectUrl = Socialite::driver('google')->redirect()->getTargetUrl();
+        Log::info("--- Redirecting to Google Auth ---", ['url' => $redirectUrl]);
+        return redirect($redirectUrl);
     }
 
     public function logout(Request $request)
@@ -148,6 +158,6 @@ class ServerController extends Controller
         auth()->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect()->route('server.login_view');
+        return redirect()->route('login');
     }
 }

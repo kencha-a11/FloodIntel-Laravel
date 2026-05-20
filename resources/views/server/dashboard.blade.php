@@ -39,6 +39,30 @@
 
     <main class="max-w-4xl mx-auto mt-10 p-6">
 
+        <div class="mb-6">
+            @if (!Auth::user()->hasVerifiedEmail())
+                <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center justify-between">
+                    <p class="text-sm text-yellow-800">
+                        <strong>Warning:</strong> Your email address is not verified.
+                    </p>
+                    <form action="{{ route('verification.send') }}" method="POST">
+                        @csrf
+                        <button type="submit" class="text-sm font-medium text-yellow-800 underline hover:text-yellow-900">
+                            Resend Verification Email
+                        </button>
+                    </form>
+                </div>
+            @else
+                <div class="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+                    </svg>
+                    <p class="text-sm text-green-700">Your email is verified.</p>
+                </div>
+            @endif
+        </div>
+
         @if(session('status'))
             <div class="mb-6 p-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg">
                 {{ session('status') }}
@@ -127,7 +151,8 @@
                             </div>
                             <div>
                                 <p class="font-semibold text-gray-900">Connected via
-                                    {{ ucfirst(Auth::user()->provider_name) }}</p>
+                                    {{ ucfirst(Auth::user()->provider_name) }}
+                                </p>
                                 <p class="text-sm text-gray-600">Provider ID: {{ Auth::user()->provider_id }}</p>
                             </div>
                         </div>

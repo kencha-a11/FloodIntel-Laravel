@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         // Dito mo ilalagay ang global middleware sa hinaharap
+        $middleware->alias([
+            'terms' => \App\Http\Middleware\EnsureTermsAccepted::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Dito ang handling ng errors

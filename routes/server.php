@@ -9,12 +9,25 @@ Route::middleware(['web'])->group(function () {
 
     // 1. GUEST ROUTES: Para sa mga users na hindi pa naka-login
     Route::middleware('guest')->group(function () {
-        Route::get('/login', [ServerController::class, 'showLogin'])->name('login'); // Ginawang 'login' para sa middleware
+        Route::get('/login', [ServerController::class, 'showLogin'])->name('login');
         Route::post('/login', [ServerController::class, 'login'])->name('server.login');
         Route::post('/register', [ServerController::class, 'register'])->name('server.register');
 
         // Google Auth Redirect
         Route::get('/google', [ServerController::class, 'redirectToGoogle'])->name('server.google.redirect');
+
+        // --- PASSWORD RESET ROUTES (Bago) ---
+        Route::get('/forgot-password', function () {
+            return view('server.forgot-password');
+        })->name('password.request');
+
+        Route::post('/forgot-password', [ServerController::class, 'sendResetLink'])->name('password.email');
+
+        Route::get('/reset-password/{token}', function ($token) {
+            return view('server.reset-password', ['token' => $token]);
+        })->name('password.reset');
+
+        Route::post('/reset-password', [ServerController::class, 'resetPassword'])->name('password.update');
     });
 
     // 2. CALLBACK ROUTE: Labas sa 'guest' middleware para maiwasan ang loop

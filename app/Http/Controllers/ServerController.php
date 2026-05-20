@@ -11,6 +11,7 @@ use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Auth\Events\Registered; // Import ito
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Password;
 
 class ServerController extends Controller
 {
@@ -173,48 +174,71 @@ class ServerController extends Controller
         Log::info("--- Google Callback Process Started ---");
 
         try {
-            Log::info("Step 1: Fetching user data from Google...");
-            $socialUser = Socialite::driver('google')->user();
+            Log::info("Step 1: Fetching user data from Google (stateless)...");
+            $socialUser = Socialite::driver('google')->stateless()->user();
 
-            Log::info("Step 2: Checking if user exists in database: " . $socialUser->getEmail());
-            $existingUser = User::where('email', $socialUser->getEmail())->first();
+            $email = $socialUser->getEmail();
+            if (!$email) {
+                throw new \Exception("Google did not provide an email address.");
+            }
 
-            if ($existingUser && $existingUser->provider_name === 'email') {
-                Log::warning("Step 2.5: Google login blocked. Email exists as local account: " . $existingUser->email);
+            Log::info("Step 2: Checking if user exists in database: " . $email);
+            $user = User::where('email', $email)->first();
+
+            // Proteksyon: Huwag payagan ang Google login kung ang user ay email/password base
+            if ($user && $user->provider_name === 'email') {
+                Log::warning("Step 2.5: Google login blocked. Email exists as local account: " . $email);
                 return redirect()->route('login')
                     ->with('error', 'An account with this email already exists. Please log in with your password.');
             }
 
             Log::info("Step 3: Creating/Updating user record...");
-            $user = User::updateOrCreate(
-                ['email' => $socialUser->getEmail()],
-                [
+            if ($user) {
+                // Kung existing na ang user, i-update lang ang info (HINDI password)
+                $user->update([
+                    'name' => $socialUser->getName(),
+                    'provider_name' => 'google',
+                    'provider_id' => $socialUser->getId(),
+                    'email_verified_at' => now(),
+                ]);
+            } else {
+                // Kung bagong user, doon lang mag-generate ng random password
+                $user = User::create([
+                    'email' => $email,
                     'name' => $socialUser->getName(),
                     'provider_name' => 'google',
                     'provider_id' => $socialUser->getId(),
                     'password' => Hash::make(Str::random(32)),
                     'email_verified_at' => now(),
-                ]
-            );
+                ]);
+            }
 
-            Log::info("Step 4: Attempting to log in user (Remember Me: True)...");
-            // 'true' para sa Remember Me functionality
+            Log::info("Step 4: Logging in user...");
+
+            // Regenerate session para sa security
+            request()->session()->regenerate();
+
             auth()->login($user, true);
 
-            Log::info("--- Google Callback Process Completed Successfully ---");
+            Log::info("--- Google Callback Process Success: User ID {$user->id} ---");
             return redirect()->route('server.dashboard')->with('status', 'Logged in with Google!');
 
-        } catch (\Exception $e) {
-            Log::error("Google Callback Critical Error: " . $e->getMessage());
-            return redirect()->route('login')->with('error', 'Google login failed: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error("Google Callback Critical Error: " . get_class($e) . " - " . $e->getMessage());
+            Log::error("Stack Trace: " . $e->getTraceAsString());
+
+            return redirect()->route('login')
+                ->with('error', 'Google authentication failed: ' . $e->getMessage());
         }
     }
 
     public function redirectToGoogle()
     {
-        $redirectUrl = Socialite::driver('google')->redirect()->getTargetUrl();
-        Log::info("--- Redirecting to Google Auth ---", ['url' => $redirectUrl]);
-        return redirect($redirectUrl);
+        Log::info("--- Redirecting to Google Auth ---");
+
+        // Gamitin ang standard redirect() para siguradong
+        // naise-set ng Socialite ang mga kailangang session states.
+        return Socialite::driver('google')->redirect();
     }
 
     public function logout(Request $request)
@@ -223,5 +247,36 @@ class ServerController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('login');
+    }
+
+    public function sendResetLink(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $status = Password::sendResetLink($request->only('email'));
+
+        return $status === Password::RESET_LINK_SENT
+            ? back()->with('status', __($status))
+            : back()->withErrors(['email' => __($status)]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:8|confirmed',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill(['password' => Hash::make($password)])->save();
+            }
+        );
+
+        return $status === Password::PASSWORD_RESET
+            ? redirect()->route('login')->with('status', __($status))
+            : back()->withErrors(['email' => [__($status)]]);
     }
 }

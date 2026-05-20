@@ -12,52 +12,53 @@ Route::middleware(['web'])->group(function () {
         Route::get('/login', [ServerController::class, 'showLogin'])->name('login');
         Route::post('/login', [ServerController::class, 'login'])->name('server.login');
         Route::post('/register', [ServerController::class, 'register'])->name('server.register');
-
-        // Google Auth Redirect
         Route::get('/google', [ServerController::class, 'redirectToGoogle'])->name('server.google.redirect');
 
-        // --- PASSWORD RESET ROUTES (Bago) ---
+        // Password Reset
         Route::get('/forgot-password', function () {
             return view('server.forgot-password');
         })->name('password.request');
-
         Route::post('/forgot-password', [ServerController::class, 'sendResetLink'])->name('password.email');
-
         Route::get('/reset-password/{token}', function ($token) {
             return view('server.reset-password', ['token' => $token]);
         })->name('password.reset');
-
         Route::post('/reset-password', [ServerController::class, 'resetPassword'])->name('password.update');
     });
 
-    // 2. CALLBACK ROUTE: Labas sa 'guest' middleware para maiwasan ang loop
+    // 2. CALLBACK ROUTE: Labas sa 'guest'
     Route::get('/google/callback', [ServerController::class, 'handleGoogleCallback'])->name('server.google.callback');
 
-    // 3. AUTH ROUTES: Para sa mga users na naka-login na
+    // 3. AUTH ROUTES: Kailangan login na ang user (pero pwedeng hindi pa verified)
     Route::middleware('auth')->group(function () {
-        // Logout
         Route::post('/logout', [ServerController::class, 'logout'])->name('server.logout');
 
-        // Email Verification Notice
+        // Verification Routes
         Route::get('/email/verify', function () {
             return view('server.verify-email');
         })->name('verification.notice');
 
-        // Email Verification Logic
-        Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
-            $request->fulfill();
-            return redirect()->route('server.dashboard');
-        })->middleware('signed')->name('verification.verify');
-
-        // Resend Verification Email
         Route::post('/email/verification-notification', function (Request $request) {
             $request->user()->sendEmailVerificationNotification();
-            return back()->with('message', 'Verification link sent!');
+            return back()->with('status', 'Verification link sent!');
         })->middleware('throttle:6,1')->name('verification.send');
     });
 
-    // 4. PROTECTED ROUTES: Kailangan login + verified email
-    Route::get('/dashboard', [ServerController::class, 'showDashboard'])
-        ->middleware(['auth', 'verified'])
-        ->name('server.dashboard');
+    // Email Verification Handler (dapat signed route)
+    Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+        $request->fulfill();
+        return redirect()->route('server.dashboard');
+    })->middleware(['auth', 'signed'])->name('verification.verify');
+
+    // 4. PROTECTED ROUTES: Auth + Verified + Terms Accepted
+    // Siguraduhin na may 'verified' at 'terms' middleware ka sa Kernel.php o app/Http/Kernel.php
+    Route::middleware(['auth', 'verified', 'terms'])->group(function () {
+        Route::get('/dashboard', [ServerController::class, 'showDashboard'])->name('server.dashboard');
+    });
+
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/terms', function () {
+            return view('server.terms');
+        })->name('server.terms.show');
+        Route::post('/terms', [ServerController::class, 'acceptTerms'])->name('server.terms.accept');
+    });
 });

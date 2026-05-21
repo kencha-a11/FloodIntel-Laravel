@@ -57,7 +57,7 @@
         @endif
 
         <!-- Reset Form - MAY TOKEN ITO -->
-        <form action="{{ route('password.update') }}" method="POST" class="space-y-5">
+        <form action="{{ route('server.password.update') }}" method="POST" class="space-y-5">
             @csrf
             <input type="hidden" name="token" value="{{ $token ?? '' }}">
 
@@ -95,7 +95,7 @@
 
         <!-- Back to Login -->
         <div class="mt-6 text-center">
-            <a href="{{ route('login') }}"
+            <a href="{{ route('server.login') }}"
                 class="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 transition font-medium">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

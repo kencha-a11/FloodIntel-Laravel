@@ -81,7 +81,7 @@
         </div>
 
         <!-- Resend Button -->
-        <form method="POST" action="{{ route('verification.send') }}" class="mb-4" id="resend-form">
+        <form method="POST" action="{{ route('server.verification.send') }}" class="mb-4" id="resend-form">
             @csrf
             <button type="submit" id="resend-btn"
                 class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2">

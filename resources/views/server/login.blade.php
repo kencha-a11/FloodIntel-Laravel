@@ -51,19 +51,30 @@
                 <input type="email" name="email" value="{{ old('email') }}" required
                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
             </div>
+
             <div class="space-y-1">
                 <div class="flex justify-between items-center">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Password</label>
-                    <a href="{{ route('password.request') }}"
-                        class="text-xs text-indigo-600 hover:text-indigo-700 font-semibold transition">Forgot
-                        password?</a>
+                    <a href="{{ route('server.password.request') }}"
+                        class="text-xs text-indigo-600 hover:text-indigo-700 font-semibold transition">Forgot password?</a>
                 </div>
                 <input type="password" name="password" required
                     class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
             </div>
+
+            {{-- Added Remember Me Checkbox --}}
+            <div class="flex items-center">
+                <input id="remember" type="checkbox" name="remember"
+                    class="w-4 h-4 text-indigo-600 bg-slate-50 border-slate-200 rounded focus:ring-indigo-500/20 focus:ring-2 cursor-pointer">
+                <label for="remember" class="ml-2 text-sm font-medium text-slate-600 cursor-pointer select-none">
+                    Remember me
+                </label>
+            </div>
+
             <button type="submit"
-                class="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all">Sign
-                In</button>
+                class="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all">
+                Sign In
+            </button>
         </form>
 
         {{-- Register Form --}}

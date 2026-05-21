@@ -69,7 +69,7 @@
                             <strong>Email not verified:</strong> Please verify your email to access all features.
                         </p>
                     </div>
-                    <form action="{{ route('verification.send') }}" method="POST">
+                    <form action="{{ route('server.verification.send') }}" method="POST">
                         @csrf
                         <button type="submit"
                             class="text-sm font-medium text-amber-800 bg-amber-100 px-4 py-2 rounded-xl hover:bg-amber-200 transition">

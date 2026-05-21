@@ -49,7 +49,7 @@ class ServerController extends Controller
             // Step 3: Handle rendering errors
             Log::error("Step 3: Critical error rendering dashboard for User ID " . auth()->id() . ": " . $e->getMessage());
 
-            return redirect()->route('login')->with('error', 'Unable to load dashboard. Please try again.');
+            return redirect()->route('server.login')->with('error', 'Unable to load dashboard. Please try again.');
         }
     }
 
@@ -106,7 +106,7 @@ class ServerController extends Controller
             auth()->login($user);
             Log::info("Step 6: User ID {$user->id} registered, session regenerated, and logged in.");
 
-            return redirect()->route('verification.notice')
+            return redirect()->route('server.verification.notice')
                 ->with('status', 'Account created! Please check your email to verify.');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -160,7 +160,7 @@ class ServerController extends Controller
                 auth()->login($user, $request->boolean('remember'));
                 $request->session()->regenerate();
 
-                return redirect()->route('verification.notice')
+                return redirect()->route('server.verification.notice')
                     ->with('error', 'Please verify your email address before accessing the dashboard.');
             }
 
@@ -203,13 +203,13 @@ class ServerController extends Controller
         if (request()->has('error')) {
             Log::error("GOOGLE CALLBACK: Google returned an error: " . request()->get('error'));
             Log::error("GOOGLE CALLBACK: Error description: " . request()->get('error_description', 'No description'));
-            return redirect()->route('login')->with('error', 'Google authentication failed: ' . request()->get('error'));
+            return redirect()->route('server.login')->with('error', 'Google authentication failed: ' . request()->get('error'));
         }
 
         // Check if code is present
         if (!request()->has('code')) {
             Log::error("GOOGLE CALLBACK: No authorization code received from Google");
-            return redirect()->route('login')->with('error', 'No authorization code received from Google.');
+            return redirect()->route('server.login')->with('error', 'No authorization code received from Google.');
         }
 
         Log::info("GOOGLE CALLBACK: Authorization code received successfully");
@@ -246,7 +246,7 @@ class ServerController extends Controller
             // Validate email
             if (empty($email)) {
                 Log::error("GOOGLE CALLBACK: No email address provided by Google account");
-                return redirect()->route('login')->with('error', 'Your Google account does not have an email address. Please use a different account.');
+                return redirect()->route('server.login')->with('error', 'Your Google account does not have an email address. Please use a different account.');
             }
 
             // ========================================================================
@@ -436,7 +436,7 @@ class ServerController extends Controller
             Log::error("  - Browser cookies were cleared during the process");
             Log::error("======================================================================");
 
-            return redirect()->route('login')->with('error', 'Authentication expired. Please try again.');
+            return redirect()->route('server.login')->with('error', 'Authentication expired. Please try again.');
 
         } catch (\Laravel\Socialite\Two\ProviderException $e) {
             // ========================================================================
@@ -459,7 +459,7 @@ class ServerController extends Controller
             Log::error("  - Invalid or expired authorization code");
             Log::error("======================================================================");
 
-            return redirect()->route('login')->with('error', 'Google authentication failed. Please try again.');
+            return redirect()->route('server.login')->with('error', 'Google authentication failed. Please try again.');
 
         } catch (\Throwable $e) {
             // ========================================================================
@@ -486,7 +486,7 @@ class ServerController extends Controller
             Log::error("  - All request params: ", request()->all());
             Log::error("======================================================================");
 
-            return redirect()->route('login')->with('error', 'Authentication failed. Please try again.');
+            return redirect()->route('server.login')->with('error', 'Authentication failed. Please try again.');
         }
     }
 
@@ -506,7 +506,7 @@ class ServerController extends Controller
             // Step 3: Log failure if redirect fails
             Log::error("Step 3: Failed to initiate Google redirect. Error: " . $e->getMessage());
 
-            return redirect()->route('login')
+            return redirect()->route('server.login')
                 ->with('error', 'Unable to connect to Google. Please try again later.');
         }
     }
@@ -526,7 +526,7 @@ class ServerController extends Controller
 
         Log::info("Step 2: Session invalidated and Remember Me cookie cleared.");
 
-        return redirect()->route('login')
+        return redirect()->route('server.login')
             ->with('status', 'You have been logged out successfully.')
             ->withCookie($cookie);
     }
@@ -561,18 +561,30 @@ class ServerController extends Controller
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',
-            'password' => 'required|min:8|confirmed',
+            'password' => 'required|min:8|confirmed', // Naghahanap ng 'password_confirmation' sa request
         ]);
 
         // Step 2: Processing Password Reset
         Log::info("Step 2: Executing password reset service for: {$request->email}");
 
+        // Tiyakin natin na malinis at eksakto ang keys na kailangan ng Password Broker ng Laravel
+        $credentials = [
+            'email' => $request->email,
+            'password' => $request->password,
+            'password_confirmation' => $request->password_confirmation,
+            'token' => $request->token,
+        ];
+
         $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
+            $credentials,
             function ($user, $password) {
+                // Gamitin ang standard na event o direct forceFill
                 $user->forceFill([
                     'password' => Hash::make($password)
                 ])->save();
+
+                // Kung gusto mong i-login ang user pagkatapos mag-reset (Optional para sa Web)
+                // event(new \Illuminate\Auth\Events\PasswordReset($user));
 
                 Log::info("Step 2a: Password successfully updated in database for User ID: {$user->id}");
             }
@@ -581,11 +593,13 @@ class ServerController extends Controller
         // Step 3: Check status and log result
         if ($status === Password::PASSWORD_RESET) {
             Log::info("Step 3: Password reset successful for: {$request->email}");
-            return redirect()->route('login')->with('status', __($status));
+            return redirect()->route('server.login')->with('status', __($status));
         }
 
         Log::warning("Step 3: Password reset failed for: {$request->email}. Status: " . __($status));
-        return back()->withErrors(['email' => [__($status)]]);
+
+        // Inalis ang nested array sa withErrors para sumunod sa default validation messaging structure
+        return back()->withErrors(['email' => __($status)]);
     }
 
     public function acceptTerms(Request $request)

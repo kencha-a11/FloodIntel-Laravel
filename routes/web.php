@@ -7,5 +7,5 @@ Route::prefix('server')->group(function () {
 });
 
 Route::get('/', function () {
-    return redirect()->route('login'); // 'login' ang route name mo sa server.php
+    return redirect()->route('server.login'); // 'login' ang route name mo sa server.php
 });

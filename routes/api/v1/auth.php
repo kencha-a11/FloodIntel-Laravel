@@ -27,8 +27,8 @@ Route::prefix('auth')->group(function () {
     // 4. EmailVerificationController (Resend & Verify)
     Route::middleware('auth:sanctum')->post('/email/resend-verification', [EmailVerificationController::class, 'sendVerificationNotification']);
     // Tandaan: Ang verify route ay madalas binubuksan via browser/email client
-    Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verifyEmail'])
-        ->name('verification.verify');
+    Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verifyEmail']);
+        // ->name('verification.verify');
 
     // 5. TermsConditionController (Protected)
     Route::middleware('auth:sanctum')->post('/terms/accept', [TermsConditionController::class, 'acceptTerms']);

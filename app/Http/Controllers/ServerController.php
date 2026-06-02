@@ -585,7 +585,7 @@ class ServerController extends Controller
 
                 // Kung gusto mong i-login ang user pagkatapos mag-reset (Optional para sa Web)
                 // event(new \Illuminate\Auth\Events\PasswordReset($user));
-
+    
                 Log::info("Step 2a: Password successfully updated in database for User ID: {$user->id}");
             }
         );

@@ -14,9 +14,8 @@ Route::prefix('test')->group(function () {
     // Gamitin ang class name para iwas typo
     // Route::get('/flood-points', [BarangayController::class, 'getSpecificFloodPoints']);
 
-
     // gawa ka ng route para sa example data retrieval dito
-    // Route::get('/users', [UserController::class, 'index']);
+    Route::get('/users', [UserController::class, 'index']);
 
     Route::get('/todos', [WebTestController::class, 'index']);           // Read
     Route::post('/todos', [WebTestController::class, 'store']);         // Create

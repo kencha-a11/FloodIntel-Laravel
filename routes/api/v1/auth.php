@@ -73,7 +73,7 @@ Route::prefix('auth')->group(function () {
 // ========================================================================
 // 5. PROTECTED API ROUTES (Naka-login + Verified Email + Accepted Terms)
 // ========================================================================
-// Siguraduhing nakarehistro ang 'terms' at 'verified' middleware sa iyong bootstrap/app.php (Laravel 11) 
+// Siguraduhing nakarehistro ang 'terms' at 'verified' middleware sa iyong bootstrap/app.php (Laravel 11)
 Route::middleware(['auth:sanctum', 'verified', 'terms'])->group(function () {
 
     Route::get('/dashboard', function (Request $request) {

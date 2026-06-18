@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class EmailVerificationController extends Controller
@@ -17,8 +16,9 @@ class EmailVerificationController extends Controller
     public function sendVerificationNotification(Request $request)
     {
         $user = $request->user();
-        if (!$user)
+        if (!$user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
+        }
 
         $throttleKey = 'resend-verification:' . $user->id;
         if (RateLimiter::tooManyAttempts($throttleKey, 2)) {
@@ -90,7 +90,11 @@ class EmailVerificationController extends Controller
         }
 
         if (!$user->hasVerifiedEmail()) {
-            DB::table('users')->where('id', $user->id)->update(['email_verified_at' => now()]);
+            // Gumamit ng Eloquent para malinis at hindi mag-error ang package parser ng VS Code
+            $user->forceFill([
+                'email_verified_at' => now(),
+            ])->save();
+
             Log::info("[VERIFY-EMAIL] Successfully verified user: {$id}");
         }
 

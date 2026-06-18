@@ -3,9 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ServerController;
 
-// -------------------------------------------------------------
-// Core System & API Group
-// -------------------------------------------------------------
+
 Route::prefix('server')->group(function () {
     require __DIR__ . '/server.php';
 });
@@ -43,19 +41,6 @@ Route::get('/debug-mail', function () {
     ];
 });
 
-Route::get('/test-mail', function () {
-    try {
-        Mail::raw('Test from Render', function ($message) {
-            $message->to('aljonkenfernandez36@gmail.com')
-                ->from(env('MAIL_FROM_ADDRESS'), 'FloodIntel')
-                ->subject('SMTP Test');
-        });
-        return 'Mail sent (no exception)';
-    } catch (\Exception $e) {
-        return 'Error: ' . $e->getMessage();
-    }
-});
-
 Route::get('/test-connection', function () {
     $host = 'smtp-relay.brevo.com';
     $port = 2525; // test both 587 and 465
@@ -66,5 +51,18 @@ Route::get('/test-connection', function () {
         return "Connection to $host:$port succeeded.";
     } else {
         return "Connection to $host:$port failed: $errstr ($errno)";
+    }
+});
+
+Route::get('/test-mail', function () {
+    try {
+        Mail::raw('Test from Render', function ($message) {
+            $message->to('aljonkenfernandez36@gmail.com')
+                ->from(env('MAIL_FROM_ADDRESS'), 'FloodIntel')
+                ->subject('SMTP Test');
+        });
+        return 'Mail sent (no exception)';
+    } catch (\Exception $e) {
+        return 'Error: ' . $e->getMessage();
     }
 });

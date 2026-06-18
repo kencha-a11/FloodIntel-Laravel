@@ -1,0 +1,96 @@
+Gumawa ka ng modern and clean authentication page design gamit ang TailwindCSS. Kailangan ko ng login at registration form sa isang page na may tab switching.
+
+DESIGN REQUIREMENTS:
+
+1. COLOR SCHEME:
+   - Main background: Slate-50 (bg-slate-50)
+   - Card background: White
+   - Primary color: Indigo-600 (buttons, active tab)
+   - Text colors: Slate-900 para sa headings, Slate-500 para sa subtext
+   - Border colors: Slate-100 or Slate-200
+
+2. CARD/LAYOUT:
+   - Centered sa screen gamit ang flex
+   - White card na may rounded-3xl (border-radius: 24px)
+   - May subtle shadow: shadow-2xl shadow-indigo-100
+   - May border: border border-slate-100
+   - Maximum width: max-w-md (28rem / 448px)
+   - Padding: p-8 (2rem)
+
+3. HEADER SECTION:
+   - Title: "Welcome Back" (text-3xl font-bold text-slate-900)
+   - Subtitle: "Enter your details to access your account" (text-slate-500 text-sm)
+
+4. TAB SWITCHING:
+   - Grid na may 2 columns (Sign In at Register)
+   - Background: bg-slate-100 na may rounded-2xl
+   - Active tab: White background, shadow-sm, text-indigo-600
+   - Inactive tab: text-slate-500, hover:text-slate-700
+   - Transition: smooth transition-all
+
+5. FORM FIELDS:
+   - Labels: text-xs font-bold uppercase tracking-wider text-slate-400
+   - Inputs: w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl
+   - Focus effect: ring-2 ring-indigo-500/20 focus:border-indigo-500
+   - Transition: transition-all outline-none
+
+6. LOGIN FORM:
+   - Email field
+   - Password field na may "Forgot password?" link
+   - Submit button: w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold
+   - Hover effect: bg-indigo-700
+   - Active effect: scale-[0.98]
+
+7. REGISTER FORM:
+   - Full Name, Email, Password, Confirm Password fields
+   - Terms and Conditions checkbox na naka-disable at hindi clickable hangga't hindi nababasa ang terms
+   - Terms link na nag-o-open ng modal
+   - Submit button
+
+8. TERMS CHECKBOX (IMPORTANT LOGIC):
+   - Initially disabled at may opacity-50 cursor-not-allowed
+   - May modal na nagpapakita ng Terms and Conditions
+   - Dapat mag-scroll ang user hanggang dulo ng terms bago ma-enable ang "I have read" button
+   - Kapag na-click ang "I have read" button:
+     * Maa-enable ang checkbox
+     * Auto-check ang checkbox
+     * Hindi na maaaring i-uncheck ng user
+     * Magsasara ang modal
+   - Kapag nag-submit ang form, i-validate na checked ang checkbox
+
+9. TERMS MODAL:
+   - Fixed overlay: bg-slate-900/50
+   - White card: rounded-3xl p-8 max-w-lg
+   - Terms content: h-64 overflow-y-auto
+   - Accept button: disabled hangga't hindi na-scroll sa dulo
+   - Scroll detection: kapag scrolled to bottom, mag-e-enable ang button
+
+10. DIVIDER:
+    - "Or continue with" na may border lines sa magkabilang gilid
+    - Relative positioning na may absolute border
+
+11. GOOGLE BUTTON:
+    - White background na may border
+    - Hover: bg-slate-50
+    - May Google SVG icon
+    - Text: "Sign in with Google"
+
+12. ERROR/STATUS MESSAGES:
+    - Error: red-600 bg-red-50 rounded-xl
+    - Success: emerald-600 bg-emerald-50 rounded-xl
+    - Auto-hide after 5 seconds
+
+13. RESPONSIVE:
+    - Mobile-friendly
+    - Minimum padding: p-4 sa body
+    - Full width sa mobile, centered sa desktop
+
+14. ANIMATIONS:
+    - Button hover effects
+    - Active scale effect
+    - Smooth transitions
+    - Flash message fade out
+
+Ito ay login/registration page para sa Laravel application. Gumamit ng Laravel Blade syntax para sa forms at routes ({{ route('server.login') }}, @csrf, etc.). Dapat may JavaScript functions para sa tab switching, terms modal, at scroll detection.
+
+Gawin mong professional, modern, at user-friendly ang design. Ang checkbox ay dapat LOCKED hangga't hindi nababasa ang terms sa modal.

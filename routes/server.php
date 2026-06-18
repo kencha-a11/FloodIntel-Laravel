@@ -1,4 +1,5 @@
 <?php
+// server.php
 
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Http\Controllers\ServerController;

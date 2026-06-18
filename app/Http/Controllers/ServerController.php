@@ -14,6 +14,8 @@ use Illuminate\Auth\Events\Registered; // Import ito
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 
 class ServerController extends Controller
 {
@@ -585,7 +587,7 @@ class ServerController extends Controller
 
                 // Kung gusto mong i-login ang user pagkatapos mag-reset (Optional para sa Web)
                 // event(new \Illuminate\Auth\Events\PasswordReset($user));
-    
+
                 Log::info("Step 2a: Password successfully updated in database for User ID: {$user->id}");
             }
         );
@@ -622,6 +624,78 @@ class ServerController extends Controller
         } catch (\Exception $e) {
             Log::error("Step 2b: Failed to save terms acceptance for User ID: " . $request->user()->id . ". Error: " . $e->getMessage());
             return back()->with('error', 'Something went wrong. Please try again.');
+        }
+    }
+
+    public function showLogs()
+    {
+        $this->verifyLogAccessGate();
+
+        $logPath = storage_path('logs/laravel.log');
+        $logs = [];
+
+        if (File::exists($logPath) && File::size($logPath) > 0) {
+            $fileLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $rawLogs = array_slice($fileLines, -100);
+
+            foreach ($rawLogs as $line) {
+                if (preg_match('/^\[(?<date>.*?)\] (?<env>\w+)\.(?<level>\w+): (?<message>.*)/', $line, $matches)) {
+                    $logs[] = [
+                        'timestamp' => $matches['date'],
+                        'env' => $matches['env'],
+                        'level' => strtoupper($matches['level']),
+                        'message' => $matches['message'],
+                    ];
+                } else {
+                    $logs[] = [
+                        'timestamp' => '',
+                        'env' => '',
+                        'level' => 'DEBUG',
+                        'message' => $line,
+                    ];
+                }
+            }
+        } else {
+            // Mock logs for demonstration
+            $logs = [
+                ['timestamp' => now()->subMinutes(10)->toDateTimeString(), 'env' => 'production', 'level' => 'INFO', 'message' => 'Vite assets loaded successfully from Stage 1 builder.'],
+                ['timestamp' => now()->subMinutes(8)->toDateTimeString(), 'env' => 'production', 'level' => 'INFO', 'message' => 'Apache document root successfully mapped to /var/www/html/public.'],
+                ['timestamp' => now()->subMinutes(5)->toDateTimeString(), 'env' => 'production', 'level' => 'WARNING', 'message' => 'Database connection pool approaching 80% utilization capacity.'],
+                ['timestamp' => now()->subMinutes(2)->toDateTimeString(), 'env' => 'production', 'level' => 'ERROR', 'message' => 'SQLSTATE[HY000] [2002] Connection refused (SQL: select * from users where id = 1)'],
+                ['timestamp' => now()->subMinute()->toDateTimeString(), 'env' => 'production', 'level' => 'CRITICAL', 'message' => 'Memory threshold warning: Supervisor process killed queue worker PID 42.'],
+            ];
+        }
+
+        return view('logs', ['logs' => array_reverse($logs)]);
+    }
+
+    public function clearLogs(Request $request)
+    {
+        $secretKey = $request->query('secret') ?? $request->input('secret');
+
+        if (!$secretKey) {
+            parse_str(parse_url(url()->previous(), PHP_URL_QUERY), $previousQueryParams);
+            $secretKey = $previousQueryParams['secret'] ?? 'floodintelkey123access';
+        }
+
+        if ($secretKey !== 'floodintelkey123access') {
+            abort(403, 'Unauthorized tracking sequence detected.');
+        }
+
+        $logPath = storage_path('logs/laravel.log');
+
+        if (File::exists($logPath)) {
+            File::put($logPath, '');
+            return redirect('/logs?secret=' . $secretKey)->with('status', 'Log repository successfully truncated.');
+        }
+
+        return redirect('/logs?secret=' . $secretKey)->with('status', 'No active log file found to clear.');
+    }
+
+    private function verifyLogAccessGate()
+    {
+        if (request()->query('secret') !== 'floodintelkey123access' && request()->input('secret') !== 'floodintelkey123access') {
+            abort(403, 'Unauthorized tracking sequence detected.');
         }
     }
 }

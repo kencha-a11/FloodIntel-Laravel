@@ -7,38 +7,28 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Throwable;
 
 class CustomVerifyEmail extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    /**
-     * Create a new notification instance.
-     */
     public function __construct()
     {
-        //
+        Log::debug('[CUSTOM-VERIFY-EMAIL] Notification instance created');
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
         return ['mail'];
     }
 
-    /**
-     * Get the mail representation of the notification.
-     */
     public function toMail(object $notifiable): MailMessage
     {
-        // Bumuo ng temporary signed URL para sa email verification
         $verificationUrl = URL::temporarySignedRoute(
-            'verification.verify', // Ito ang pangalan ng route sa routes/api.php
+            'verification.verify',
             Carbon::now()->addMinutes(60),
             [
                 'id' => $notifiable->getKey(),
@@ -46,13 +36,15 @@ class CustomVerifyEmail extends Notification implements ShouldQueue
             ]
         );
 
-        // I-redirect ang user sa frontend verification handler (same tab)
-        $frontendUrl = config('app.frontend_url', 'http://localhost:5173');
-        $finalUrl = $frontendUrl . '/verified-email?verify_url=' . urlencode($verificationUrl);
+        Log::info("Verification URL generated for User: {$notifiable->getKey()}");
 
-        // Gamitin ang iyong umiiral na Blade template: resources/views/emails/verify.blade.php
         return (new MailMessage)
             ->subject('I-verify ang iyong Email Address - FloodIntel')
-            ->view('emails.verify', ['url' => $finalUrl, 'userName' => $notifiable->name]);
+            ->greeting('Hello ' . ($notifiable->name ?? 'User') . '!')
+            ->line('Please click the button below to verify your email address.')
+            ->action('Verify Email', $verificationUrl)
+            ->line('This link will expire in 60 minutes.')
+            ->line('If you did not create an account, no further action is required.')
+            ->salutation('Thank you, The FloodIntel Team');
     }
 }

@@ -1,0 +1,8 @@
+.env
+.env.example
+.env.production
+node_modules/
+vendor/
+public/build/
+.git/
+tests/

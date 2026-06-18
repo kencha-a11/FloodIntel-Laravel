@@ -20,11 +20,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink']);
     Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
 
-    // Named Route na hinahanap ng Laravel Framework para sa Password Reset Email link
-    Route::get('/reset-password/{token}', function ($token) {
-        // I-redirect ang user pabalik sa iyong SPA/Frontend password reset form
-        return redirect(config('app.frontend_url') . '/reset-password?token=' . $token . '&email=' . request('email'));
-    })->name('password.reset');
+    // VITAL: This route must be named 'password.reset' for Laravel's Password Broker to work
+    Route::get('/password/reset/{token}', [PasswordResetController::class, 'redirectToResetForm'])
+        ->name('password.reset');
 
 
     // ==========================================
@@ -42,7 +40,6 @@ Route::prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
 
-        // Check current session state & user data
         Route::get('/user', function (Request $request) {
             return response()->json([
                 'user' => $request->user(),
@@ -51,10 +48,8 @@ Route::prefix('auth')->group(function () {
             ]);
         });
 
-        // Email Verification: Pagpapadala muli ng verification link
         Route::post('/email/resend-verification', [EmailVerificationController::class, 'sendVerificationNotification']);
 
-        // Terms: Pag-accept ng terms (POST data endpoint lang)
         Route::post('/terms/accept', [TermsConditionController::class, 'acceptTerms']);
     });
 
@@ -62,18 +57,15 @@ Route::prefix('auth')->group(function () {
     // ==========================================
     // 4. EMAIL VERIFICATION HANDLER
     // ==========================================
-    // 🌟 INAYOS: Inalis ang 'auth:sanctum' dahil galing ito sa email click (browser tab).
-    // Ang 'signed' middleware ay sapat na para masigurong hindi hinuwalan ang URL.
     Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verifyEmail'])
         ->middleware(['signed'])
-        ->name('verification.verify');
+        ->name('verification.verify'); // [VITAL]
 });
 
 
 // ========================================================================
 // 5. PROTECTED API ROUTES (Naka-login + Verified Email + Accepted Terms)
 // ========================================================================
-// Siguraduhing nakarehistro ang 'terms' at 'verified' middleware sa iyong bootstrap/app.php (Laravel 11)
 Route::middleware(['auth:sanctum', 'verified', 'terms'])->group(function () {
 
     Route::get('/dashboard', function (Request $request) {

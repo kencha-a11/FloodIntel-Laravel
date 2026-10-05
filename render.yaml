@@ -12,7 +12,7 @@
 
 services:
   - type: web
-    name: floodintel-api
+    name: floodintel-laravel
     runtime: docker
     region: singapore
     plan: free
@@ -25,7 +25,7 @@ services:
       - key: APP_KEY
         generateValue: true
       - key: APP_URL
-        value: https://floodintel-api.onrender.com
+        value: https://floodintel-laravel.onrender.com
       - key: LOG_CHANNEL
         value: stderr
       - key: LOG_LEVEL
@@ -45,4 +45,4 @@ services:
       - key: CACHE_STORE
         value: database
       - key: SANCTUM_STATEFUL_DOMAINS
-        value: floodintel-api.onrender.com
+        value: floodintel-laravel.onrender.com,https://floodintel-drrms.netlify.app

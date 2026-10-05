@@ -1,18 +1,5 @@
 # syntax=docker/dockerfile:1
 
-### Stage 1: Frontend assets
-FROM node:24-alpine AS assets
-
-WORKDIR /app
-
-COPY package.json package-lock.json .npmrc ./
-RUN npm ci
-
-COPY vite.config.js ./
-COPY resources ./resources
-RUN npm run build
-
-### Stage 2: Application runtime
 FROM php:8.5-fpm AS app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -37,8 +24,6 @@ RUN composer install \
         --no-progress \
         --optimize-autoloader \
         --prefer-dist
-
-COPY --from=assets --chown=www-data:www-data /app/public/build ./public/build
 
 RUN { \
         echo 'opcache.enable=1'; \

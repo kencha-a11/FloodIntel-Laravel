@@ -1,5 +1,6 @@
 *.log
 .DS_Store
+.agents/tasks/
 .env
 .env.backup
 .env.production

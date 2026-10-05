@@ -1,0 +1,48 @@
+# Render Blueprint for the FloodIntel Laravel API (Docker runtime).
+#
+# Supabase database setup (one-time, after the first deploy is created):
+#   1. In Supabase: Connect -> Postgres -> Session mode, copy the connection string.
+#   2. In Render: Environment -> add DB_URL with that string, then mark it as a Secret.
+#      Example format:
+#        postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require
+#   Session mode (port 6543) is required: the direct connection (5432) needs IPv6,
+#   which Render containers do not have.
+#
+# If you rename the service, update APP_URL and SANCTUM_STATEFUL_DOMAINS to match.
+
+services:
+  - type: web
+    name: floodintel-api
+    runtime: docker
+    region: singapore
+    plan: free
+    healthCheckPath: /up
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        value: https://floodintel-api.onrender.com
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: floodintel-api.onrender.com

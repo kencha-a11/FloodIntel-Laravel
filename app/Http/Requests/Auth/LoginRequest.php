@@ -5,6 +5,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -74,7 +75,7 @@ class LoginRequest extends FormRequest
     /**
      * Ensure the login request is not rate limited.
      *
-     * @throws ValidationException
+     * @throws HttpResponseException
      */
     public function ensureIsNotRateLimited(): void
     {
@@ -86,9 +87,11 @@ class LoginRequest extends FormRequest
 
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
-        throw ValidationException::withMessages([
-            'login' => 'Too many login attempts. Please try again in '.$seconds.' seconds.',
-        ]);
+        throw new HttpResponseException(
+            response()->json([
+                'message' => 'Too many login attempts. Please try again in '.$seconds.' seconds.',
+            ], 429)->header('Retry-After', $seconds),
+        );
     }
 
     /**

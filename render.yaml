@@ -26,6 +26,8 @@ services:
         generateValue: true
       - key: APP_URL
         value: https://floodintel-laravel.onrender.com
+      - key: FRONTEND_URL
+        value: https://floodintel-drrms.netlify.app
       - key: LOG_CHANNEL
         value: stderr
       - key: LOG_LEVEL

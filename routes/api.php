@@ -1,11 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BarangayController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\TokenController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])
@@ -38,4 +39,15 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::post('/tokens', [TokenController::class, 'store']);
     Route::delete('/tokens', [TokenController::class, 'destroyAll']);
     Route::delete('/tokens/{token}', [TokenController::class, 'destroy']);
+});
+
+Route::middleware(['auth:sanctum', 'verified', 'role:mdrrmo_officer,mdrrmo_staff'])->group(function () {
+    Route::get('/barangays', [BarangayController::class, 'index']);
+});
+
+Route::middleware(['auth:sanctum', 'verified', 'role:mdrrmo_officer'])->group(function () {
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::patch('/users/{user}', [UserController::class, 'update']);
+    Route::delete('/users/{user}', [UserController::class, 'destroy']);
 });

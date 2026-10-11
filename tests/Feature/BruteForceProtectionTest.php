@@ -61,23 +61,6 @@ it('rate limits login attempts per ip address', function () {
     $this->postJson('/api/login', $credentials)->assertStatus(429);
 });
 
-it('rate limits registration attempts per ip address', function () {
-    RateLimiter::for('register', fn (Request $request) => Limit::perHour(2)->by($request->ip()));
-
-    $payload = fn (int $i): array => [
-        'first_name' => 'Test',
-        'last_name' => 'User',
-        'email' => "user{$i}@example.com",
-        'contact_number' => "+1555000000{$i}",
-        'password' => 'password',
-        'password_confirmation' => 'password',
-    ];
-
-    $this->postJson('/api/register', $payload(1))->assertCreated();
-    $this->postJson('/api/register', $payload(2))->assertCreated();
-    $this->postJson('/api/register', $payload(3))->assertStatus(429);
-});
-
 it('logs a warning when a login lockout occurs', function () {
     Log::spy();
 

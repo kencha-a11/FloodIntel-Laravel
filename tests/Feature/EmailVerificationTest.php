@@ -16,25 +16,6 @@ function verificationUrl(User $user, ?string $hash = null): string
     ]);
 }
 
-it('sends a verification notification when registering', function () {
-    Notification::fake();
-
-    $this->postJson('/api/register', [
-        'first_name' => 'Test',
-        'last_name' => 'User',
-        'email' => 'new@example.com',
-        'contact_number' => '+15551234567',
-        'password' => 'password',
-        'password_confirmation' => 'password',
-    ])->assertCreated();
-
-    $user = User::where('email', 'new@example.com')->firstOrFail();
-
-    expect($user->hasVerifiedEmail())->toBeFalse();
-
-    Notification::assertSentTo($user, VerifyEmail::class);
-});
-
 it('verifies the email when visiting a valid signed link', function () {
     $user = User::factory()->unverified()->create();
 

@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Enums\UserAbility;
+use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -33,6 +36,8 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(20)->by($request->ip()));
 
-        RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
+        foreach (UserAbility::cases() as $ability) {
+            Gate::define($ability->value, fn (User $user): bool => $user->hasAbility($ability));
+        }
     }
 }

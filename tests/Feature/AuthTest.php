@@ -5,65 +5,19 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
 
-it('creates a user and returns a token when registering with valid data', function () {
-    $response = $this->postJson('/api/register', [
+it('does not expose a public registration endpoint', function () {
+    $this->postJson('/api/register', [
         'first_name' => 'Test',
         'last_name' => 'User',
         'email' => 'test@example.com',
         'contact_number' => '+15551234567',
         'password' => 'password',
         'password_confirmation' => 'password',
-    ]);
+    ])->assertNotFound();
 
-    $response->assertCreated()
-        ->assertJsonStructure(['user', 'token'])
-        ->assertJsonPath('user.first_name', 'Test')
-        ->assertJsonPath('user.last_name', 'User')
-        ->assertJsonPath('user.email', 'test@example.com')
-        ->assertJsonPath('user.contact_number', '+15551234567');
-
-    $this->assertDatabaseHas('users', [
+    $this->assertDatabaseMissing('users', [
         'email' => 'test@example.com',
     ]);
-});
-
-it('returns 422 when registering with missing required fields', function () {
-    $response = $this->postJson('/api/register', []);
-
-    $response->assertUnprocessable()
-        ->assertJsonValidationErrors(['first_name', 'last_name', 'email', 'contact_number', 'password']);
-});
-
-it('returns 422 when registering with an already registered email', function () {
-    User::factory()->create(['email' => 'taken@example.com']);
-
-    $response = $this->postJson('/api/register', [
-        'first_name' => 'Test',
-        'last_name' => 'User',
-        'email' => 'taken@example.com',
-        'contact_number' => '+15557654321',
-        'password' => 'password',
-        'password_confirmation' => 'password',
-    ]);
-
-    $response->assertUnprocessable()
-        ->assertJsonValidationErrors(['email']);
-});
-
-it('returns 422 when registering with an already registered contact number', function () {
-    User::factory()->create(['contact_number' => '+15551234567']);
-
-    $response = $this->postJson('/api/register', [
-        'first_name' => 'Test',
-        'last_name' => 'User',
-        'email' => 'test@example.com',
-        'contact_number' => '+15551234567',
-        'password' => 'password',
-        'password_confirmation' => 'password',
-    ]);
-
-    $response->assertUnprocessable()
-        ->assertJsonValidationErrors(['contact_number']);
 });
 
 it('returns a token when logging in with valid credentials', function () {
@@ -76,7 +30,8 @@ it('returns a token when logging in with valid credentials', function () {
 
     $response->assertOk()
         ->assertJsonStructure(['user', 'token'])
-        ->assertJsonPath('user.id', $user->id);
+        ->assertJsonPath('user.id', $user->id)
+        ->assertJsonPath('user.role', $user->role->value);
 });
 
 it('returns a token when logging in with a valid contact number', function () {
@@ -116,15 +71,18 @@ it('returns 422 when logging in with a contact number and invalid credentials', 
         ->assertJsonValidationErrors(['login']);
 });
 
-it('returns the authenticated user when a valid token is provided', function () {
-    $user = User::factory()->create();
+it('returns the authenticated user with role and abilities when a valid token is provided', function () {
+    $user = User::factory()->officer()->create();
     $token = $user->createToken('api_token')->plainTextToken;
 
     $response = $this->withToken($token)->getJson('/api/user');
 
     $response->assertOk()
         ->assertJsonPath('id', $user->id)
-        ->assertJsonPath('email', $user->email);
+        ->assertJsonPath('email', $user->email)
+        ->assertJsonPath('role', $user->role->value)
+        ->assertJsonPath('interface', $user->role->interface()->value)
+        ->assertJsonStructure(['abilities']);
 });
 
 it('returns 401 when accessing the user endpoint without a token', function () {

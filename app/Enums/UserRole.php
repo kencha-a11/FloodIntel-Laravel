@@ -54,10 +54,12 @@ enum UserRole: string
             ],
             self::BarangayCaptain => [
                 UserAbility::SubmitImpactReport,
+                UserAbility::SubmitFloodReport,
                 UserAbility::ViewOwnBarangay,
             ],
             self::BarangayTanod => [
                 UserAbility::SubmitFloodObservation,
+                UserAbility::SubmitFloodReport,
                 UserAbility::ViewOwnBarangay,
             ],
             self::RescueLeader => [

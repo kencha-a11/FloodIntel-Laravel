@@ -91,6 +91,37 @@ it('returns 401 when accessing the user endpoint without a token', function () {
     $response->assertUnauthorized();
 });
 
+it('returns 401 instead of a server error when the client does not request json', function () {
+    $response = $this->get('/api/user');
+
+    $response->assertUnauthorized()
+        ->assertJsonPath('message', 'Unauthenticated.');
+});
+
+it('returns the assigned barangay in the authenticated user payload', function () {
+    $user = User::factory()->captain()->create();
+    $token = $user->createToken('api_token')->plainTextToken;
+
+    $response = $this->withToken($token)->getJson('/api/user');
+
+    $response->assertOk()
+        ->assertJsonPath('barangay.id', $user->barangay_id)
+        ->assertJsonPath('barangay.name', $user->barangay->name);
+});
+
+it('returns the assigned barangay in the login payload', function () {
+    $user = User::factory()->captain()->create();
+
+    $response = $this->postJson('/api/login', [
+        'login' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('user.barangay.id', $user->barangay_id)
+        ->assertJsonPath('user.barangay.name', $user->barangay->name);
+});
+
 it('returns 401 when accessing the user endpoint with an invalid token', function () {
     $response = $this->withToken('invalid-token')->getJson('/api/user');
 

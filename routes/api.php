@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarangayController;
+use App\Http\Controllers\Api\FloodReportController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
@@ -35,6 +36,11 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+    Route::get('/flood-reports', [FloodReportController::class, 'index']);
+    Route::post('/flood-reports', [FloodReportController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::get('/flood-reports/{floodReport}', [FloodReportController::class, 'show']);
+
     Route::get('/tokens', [TokenController::class, 'index']);
     Route::post('/tokens', [TokenController::class, 'store']);
     Route::delete('/tokens', [TokenController::class, 'destroyAll']);
@@ -46,6 +52,8 @@ Route::middleware(['auth:sanctum', 'verified', 'role:mdrrmo_officer,mdrrmo_staff
 });
 
 Route::middleware(['auth:sanctum', 'verified', 'role:mdrrmo_officer'])->group(function () {
+    Route::post('/flood-reports/{floodReport}/reject', [FloodReportController::class, 'reject']);
+
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::patch('/users/{user}', [UserController::class, 'update']);

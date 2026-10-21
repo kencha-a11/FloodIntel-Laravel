@@ -19,7 +19,7 @@ class AuthController extends Controller
     {
         $request->authenticate();
 
-        $user = $request->user();
+        $user = $request->user()->load('barangay');
 
         return response()->json([
             'user' => $user,
@@ -32,7 +32,7 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        return response()->json($request->user());
+        return response()->json($request->user()->load('barangay'));
     }
 
     /**

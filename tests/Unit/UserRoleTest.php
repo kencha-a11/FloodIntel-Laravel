@@ -32,10 +32,12 @@ it('grants the expected abilities to each role', function (UserRole $role, array
     ]],
     'captain' => [UserRole::BarangayCaptain, [
         UserAbility::SubmitImpactReport,
+        UserAbility::SubmitFloodReport,
         UserAbility::ViewOwnBarangay,
     ]],
     'tanod' => [UserRole::BarangayTanod, [
         UserAbility::SubmitFloodObservation,
+        UserAbility::SubmitFloodReport,
         UserAbility::ViewOwnBarangay,
     ]],
     'rescue' => [UserRole::RescueLeader, [
@@ -54,3 +56,9 @@ it('flags the barangay scoped roles', function (UserRole $role, bool $expected) 
     [UserRole::MdrrmoStaff, false],
     [UserRole::RescueLeader, false],
 ]);
+
+it('provides a label for every ability', function () {
+    foreach (UserAbility::cases() as $ability) {
+        expect($ability->label())->toBeString()->not->toBeEmpty();
+    }
+});

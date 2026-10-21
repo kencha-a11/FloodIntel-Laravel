@@ -11,6 +11,7 @@ enum UserAbility: string
     case MonitorDashboard = 'monitor-dashboard';
     case SubmitImpactReport = 'submit-impact-report';
     case SubmitFloodObservation = 'submit-flood-observation';
+    case SubmitFloodReport = 'submit-flood-report';
     case ViewValidatedReports = 'view-validated-reports';
     case UpdateRescueStatus = 'update-rescue-status';
     case ManageUsers = 'manage-users';
@@ -27,6 +28,7 @@ enum UserAbility: string
             self::MonitorDashboard => 'Monitor dashboard',
             self::SubmitImpactReport => 'Submit barangay impact reports',
             self::SubmitFloodObservation => 'Submit flood-level observations',
+            self::SubmitFloodReport => 'Submit flood reports',
             self::ViewValidatedReports => 'View validated reports',
             self::UpdateRescueStatus => 'Update rescue status',
             self::ManageUsers => 'Manage user accounts',

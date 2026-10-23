@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarangayController;
 use App\Http\Controllers\Api\FloodReportController;
+use App\Http\Controllers\Api\GeocodeController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
@@ -40,6 +41,9 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::post('/flood-reports', [FloodReportController::class, 'store'])
         ->middleware('throttle:10,1');
     Route::get('/flood-reports/{floodReport}', [FloodReportController::class, 'show']);
+
+    Route::get('/geocode/reverse', [GeocodeController::class, 'reverse'])
+        ->middleware('throttle:30,1');
 
     Route::get('/tokens', [TokenController::class, 'index']);
     Route::post('/tokens', [TokenController::class, 'store']);

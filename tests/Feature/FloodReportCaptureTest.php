@@ -7,9 +7,15 @@ use App\Models\FloodReport;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 uses(LazilyRefreshDatabase::class);
+
+beforeEach(function () {
+    Cache::flush();
+});
 
 function floodReportPayload(array $overrides = []): array
 {
@@ -26,6 +32,7 @@ function floodReportPayload(array $overrides = []): array
 
 it('lets a tanod submit a flood report with a photo', function () {
     Storage::fake('public');
+    Http::fake();
 
     $tanod = User::factory()->tanod()->create();
     $barangay = $tanod->barangay;
@@ -51,12 +58,92 @@ it('lets a tanod submit a flood report with a photo', function () {
 
 it('lets a captain submit a flood report', function () {
     Storage::fake('public');
+    Http::fake();
 
     $captain = User::factory()->captain()->create();
 
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->post('/api/flood-reports', floodReportPayload())
         ->assertCreated();
+});
+
+it('stores a reverse-geocoded address with the report', function () {
+    Storage::fake('public');
+
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response([
+            'display_name' => '17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines',
+            'address' => [
+                'house_number' => '17',
+                'road' => 'Mabini Street',
+                'suburb' => 'Barangay 5',
+                'city' => 'Tacloban City',
+                'state' => 'Leyte',
+                'postcode' => '6500',
+                'country' => 'Philippines',
+            ],
+        ]),
+    ]);
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload())
+        ->assertCreated()
+        ->assertJsonPath(
+            'data.address',
+            '17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines',
+        );
+
+    expect(FloodReport::firstOrFail()->address)
+        ->toBe('17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines');
+});
+
+it('still submits a report when reverse geocoding fails', function () {
+    Storage::fake('public');
+
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response([], 503),
+    ]);
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload())
+        ->assertCreated()
+        ->assertJsonPath('data.address', null);
+
+    expect(FloodReport::firstOrFail()->address)->toBeNull();
+});
+
+it('reuses the cached address for nearby coordinates', function () {
+    Storage::fake('public');
+
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response([
+            'address' => [
+                'road' => 'Mabini Street',
+                'city' => 'Tacloban City',
+                'country' => 'Philippines',
+            ],
+        ]),
+    ]);
+
+    $tanod = User::factory()->tanod()->create();
+    $token = $tanod->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->post('/api/flood-reports', floodReportPayload())
+        ->assertCreated();
+
+    $this->withToken($token)
+        ->post('/api/flood-reports', floodReportPayload([
+            'latitude' => 14.5995001,
+            'longitude' => 120.9842001,
+        ]))
+        ->assertCreated();
+
+    Http::assertSentCount(1);
 });
 
 it('requires a photo', function () {

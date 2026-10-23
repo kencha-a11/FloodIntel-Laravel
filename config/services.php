@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'geocoder' => [
+        'url' => env('GEOCODER_URL', 'https://nominatim.openstreetmap.org'),
+        'user_agent' => env(
+            'GEOCODER_USER_AGENT',
+            'FloodIntel/1.0 (capstone flood reporting; contact: admin@floodintel.local)',
+        ),
+        'key' => env('GEOCODER_API_KEY'),
+        'timeout' => (int) env('GEOCODER_TIMEOUT', 3),
+    ],
+
 ];

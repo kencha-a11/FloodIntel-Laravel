@@ -10,6 +10,7 @@ use App\Http\Requests\Report\StoreFloodReportRequest;
 use App\Http\Resources\FloodReportResource;
 use App\Models\FloodReport;
 use App\Models\User;
+use App\Services\ReverseGeocoder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -40,8 +41,10 @@ class FloodReportController extends Controller
     /**
      * Store a new flood level report.
      */
-    public function store(StoreFloodReportRequest $request): JsonResponse
-    {
+    public function store(
+        StoreFloodReportRequest $request,
+        ReverseGeocoder $geocoder,
+    ): JsonResponse {
         $user = $request->user();
 
         $path = $request->file('photo')->store(
@@ -49,13 +52,17 @@ class FloodReportController extends Controller
             'public',
         );
 
+        $latitude = (float) $request->input('latitude');
+        $longitude = (float) $request->input('longitude');
+
         $report = FloodReport::create([
             'user_id' => $user->id,
             'barangay_id' => $user->barangay_id,
             'flood_level' => $request->string('flood_level')->toString(),
-            'latitude' => $request->input('latitude'),
-            'longitude' => $request->input('longitude'),
+            'latitude' => $latitude,
+            'longitude' => $longitude,
             'gps_accuracy' => $request->input('gps_accuracy'),
+            'address' => $geocoder->lookup($latitude, $longitude),
             'photo_path' => $path,
             'notes' => $request->input('notes'),
             'reported_at' => $request->input('reported_at') ?: now(),

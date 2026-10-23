@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
     'user_id', 'barangay_id', 'flood_level', 'latitude', 'longitude',
-    'gps_accuracy', 'photo_path', 'notes', 'reported_at', 'status',
+    'gps_accuracy', 'address', 'photo_path', 'notes', 'reported_at', 'status',
     'rejected_at', 'rejected_by', 'rejection_reason',
 ])]
 #[Appends(['photo_url'])]

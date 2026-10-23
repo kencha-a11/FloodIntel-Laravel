@@ -32,6 +32,7 @@ class FloodReportResource extends JsonResource
             'latitude' => (float) $this->latitude,
             'longitude' => (float) $this->longitude,
             'gps_accuracy' => $this->gps_accuracy !== null ? (float) $this->gps_accuracy : null,
+            'address' => $this->address,
             'photo_url' => $this->photo_url,
             'notes' => $this->notes,
             'reported_at' => $this->reported_at,

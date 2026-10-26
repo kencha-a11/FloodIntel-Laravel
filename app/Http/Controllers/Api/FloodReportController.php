@@ -47,6 +47,15 @@ class FloodReportController extends Controller
     ): JsonResponse {
         $user = $request->user();
 
+        if (blank($user->barangay_id)) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'barangay_id' => ['A barangay is required for your account to submit a flood report.'],
+                ],
+            ], 422);
+        }
+
         $path = $request->file('photo')->store(
             'flood-reports/'.$user->id.'/'.now()->format('Y-m'),
             'public',
@@ -58,7 +67,11 @@ class FloodReportController extends Controller
         $report = FloodReport::create([
             'user_id' => $user->id,
             'barangay_id' => $user->barangay_id,
-            'flood_level' => $request->string('flood_level')->toString(),
+            'flood_level' => $request->input('flood_level'),
+            'alert_level' => $request->input('alert_level'),
+            'flood_type' => $request->input('flood_type'),
+            'depth_cm' => $request->input('depth_cm'),
+            'landmark' => $request->input('landmark'),
             'latitude' => $latitude,
             'longitude' => $longitude,
             'gps_accuracy' => $request->input('gps_accuracy'),

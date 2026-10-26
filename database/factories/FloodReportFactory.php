@@ -2,8 +2,10 @@
 
 namespace Database\Factories;
 
+use App\Enums\AlertLevel;
 use App\Enums\FloodLevel;
 use App\Enums\FloodReportStatus;
+use App\Enums\FloodType;
 use App\Models\Barangay;
 use App\Models\FloodReport;
 use App\Models\User;
@@ -44,6 +46,20 @@ class FloodReportFactory extends Factory
             'status' => FloodReportStatus::Rejected,
             'rejected_at' => now(),
             'rejection_reason' => 'Invalid report.',
+        ]);
+    }
+
+    /**
+     * Indicate that the report uses the new alert-level format.
+     */
+    public function newFormat(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'flood_level' => null,
+            'alert_level' => fake()->randomElement(AlertLevel::cases()),
+            'flood_type' => fake()->randomElement(FloodType::cases()),
+            'depth_cm' => fake()->optional()->numberBetween(0, 500),
+            'landmark' => fake()->optional()->sentence(3),
         ]);
     }
 }

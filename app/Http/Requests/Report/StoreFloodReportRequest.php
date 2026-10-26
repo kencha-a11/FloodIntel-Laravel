@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Report;
 
+use App\Enums\AlertLevel;
 use App\Enums\FloodLevel;
+use App\Enums\FloodType;
 use App\Models\FloodReport;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -26,7 +28,30 @@ class StoreFloodReportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'flood_level' => ['required', Rule::enum(FloodLevel::class)],
+            'alert_level' => [
+                'required_without:flood_level',
+                function ($attribute, $value, $fail): void {
+                    if ($value !== null && $this->input('flood_level') !== null) {
+                        $fail('The alert level and flood level cannot both be provided.');
+                    }
+                },
+                Rule::enum(AlertLevel::class),
+            ],
+            'flood_level' => [
+                'required_without:alert_level',
+                function ($attribute, $value, $fail): void {
+                    if ($value !== null && $this->input('alert_level') !== null) {
+                        $fail('The flood level and alert level cannot both be provided.');
+                    }
+                },
+                Rule::enum(FloodLevel::class),
+            ],
+            'flood_type' => [
+                'required_with:alert_level',
+                Rule::enum(FloodType::class),
+            ],
+            'depth_cm' => ['nullable', 'integer', 'min:0', 'max:1000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'gps_accuracy' => ['nullable', 'numeric', 'min:0'],

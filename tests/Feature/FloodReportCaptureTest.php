@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\AlertLevel;
 use App\Enums\FloodLevel;
 use App\Enums\FloodReportStatus;
+use App\Enums\FloodType;
 use App\Enums\UserRole;
 use App\Models\FloodReport;
 use App\Models\User;
@@ -19,7 +21,7 @@ beforeEach(function () {
 
 function floodReportPayload(array $overrides = []): array
 {
-    return array_merge([
+    $payload = array_merge([
         'flood_level' => FloodLevel::Knee->value,
         'latitude' => 14.5995,
         'longitude' => 120.9842,
@@ -28,6 +30,15 @@ function floodReportPayload(array $overrides = []): array
         'notes' => 'Water rising near the school.',
         'reported_at' => now()->subMinutes(5)->toIso8601String(),
     ], $overrides);
+
+    // Allow removing a key by setting it to null in overrides
+    foreach ($overrides as $key => $value) {
+        if ($value === null) {
+            unset($payload[$key]);
+        }
+    }
+
+    return $payload;
 }
 
 it('lets a tanod submit a flood report with a photo', function () {
@@ -186,6 +197,214 @@ it('validates the flood level', function () {
         ->assertJsonValidationErrors(['flood_level']);
 });
 
+it('accepts a new-format payload with all fields', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => AlertLevel::RedAlert->value,
+            'flood_type' => FloodType::RiverOverflow->value,
+            'depth_cm' => 150,
+            'landmark' => 'Near the school gate.',
+        ]))
+        ->assertCreated()
+        ->assertJsonPath('data.alert_level', AlertLevel::RedAlert->value)
+        ->assertJsonPath('data.alert_level_label', AlertLevel::RedAlert->label())
+        ->assertJsonPath('data.alert_severity', 3)
+        ->assertJsonPath('data.flood_type', FloodType::RiverOverflow->value)
+        ->assertJsonPath('data.flood_type_label', FloodType::RiverOverflow->label())
+        ->assertJsonPath('data.depth_cm', 150)
+        ->assertJsonPath('data.landmark', 'Near the school gate.')
+        ->assertJsonPath('data.flood_level', null);
+
+    $report = FloodReport::firstOrFail();
+    expect($report->alert_level)->toBe(AlertLevel::RedAlert)
+        ->and($report->flood_type)->toBe(FloodType::RiverOverflow)
+        ->and($report->depth_cm)->toBe(150)
+        ->and($report->landmark)->toBe('Near the school gate.')
+        ->and($report->flood_level)->toBeNull();
+});
+
+it('accepts a new-format payload without optional depth and landmark', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => AlertLevel::Alert->value,
+            'flood_type' => FloodType::Ponding->value,
+        ]))
+        ->assertCreated()
+        ->assertJsonPath('data.alert_level', AlertLevel::Alert->value)
+        ->assertJsonPath('data.flood_type', FloodType::Ponding->value)
+        ->assertJsonPath('data.depth_cm', null)
+        ->assertJsonPath('data.landmark', null);
+
+    $report = FloodReport::firstOrFail();
+    expect($report->depth_cm)->toBeNull()
+        ->and($report->landmark)->toBeNull();
+});
+
+it('still accepts a legacy five-level payload', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload())
+        ->assertCreated()
+        ->assertJsonPath('data.flood_level', FloodLevel::Knee->value)
+        ->assertJsonPath('data.flood_level_label', FloodLevel::Knee->label())
+        ->assertJsonPath('data.alert_level', null)
+        ->assertJsonPath('data.flood_type', null);
+
+    $report = FloodReport::firstOrFail();
+    expect($report->flood_level)->toBe(FloodLevel::Knee)
+        ->and($report->alert_level)->toBeNull()
+        ->and($report->flood_type)->toBeNull();
+});
+
+it('rejects a payload with neither level field', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => null,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['alert_level', 'flood_level']);
+});
+
+it('rejects a payload with both level fields', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(), [
+            'alert_level' => AlertLevel::Alert->value,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['alert_level', 'flood_level']);
+});
+
+it('rejects a new-format payload without flood type', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => AlertLevel::Alert->value,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['flood_type']);
+});
+
+it('rejects invalid alert level', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => 'tsunami',
+            'flood_type' => FloodType::Ponding->value,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['alert_level']);
+});
+
+it('rejects invalid flood type', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => AlertLevel::Alert->value,
+            'flood_type' => 'flash_flood',
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['flood_type']);
+});
+
+it('rejects negative depth', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => AlertLevel::Alert->value,
+            'flood_type' => FloodType::Ponding->value,
+            'depth_cm' => -5,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['depth_cm']);
+});
+
+it('rejects excessive depth', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => AlertLevel::Alert->value,
+            'flood_type' => FloodType::Ponding->value,
+            'depth_cm' => 1001,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['depth_cm']);
+});
+
+it('rejects landmark over 255 characters', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', array_merge(floodReportPayload(['flood_level' => null]), [
+            'alert_level' => AlertLevel::Alert->value,
+            'flood_type' => FloodType::Ponding->value,
+            'landmark' => str_repeat('x', 256),
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['landmark']);
+});
+
+it('keeps reported_at unchanged when a report is rejected', function () {
+    Storage::fake('public');
+
+    $officer = User::factory()->officer()->create();
+    $tanod = User::factory()->tanod()->create();
+    $reportedAt = '2026-10-26 10:00:00';
+    $createdAt = '2026-10-26 10:00:00';
+    $report = FloodReport::factory()->for($tanod, 'user')->for($tanod->barangay, 'barangay')->create([
+        'reported_at' => $reportedAt,
+        'created_at' => $createdAt,
+    ]);
+
+    $this->withToken($officer->createToken('t')->plainTextToken)
+        ->postJson("/api/flood-reports/{$report->id}/reject", [
+            'rejection_reason' => 'Photo does not match location.',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.status', FloodReportStatus::Rejected->value);
+
+    expect($report->fresh()->reported_at->format('Y-m-d H:i:s'))->toBe($reportedAt)
+        ->and($report->fresh()->created_at->format('Y-m-d H:i:s'))->toBe($createdAt);
+});
+
 it('validates latitude and longitude ranges', function () {
     Storage::fake('public');
 
@@ -339,3 +558,19 @@ it('forbids non-officers from rejecting a report', function () {
         ])
         ->assertForbidden();
 });
+it('rejects submission from a field user with no barangay before storing a photo', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $user = User::factory()->tanod()->create(['barangay_id' => null]);
+
+    $response = $this->withToken($user->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload());
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['barangay_id']);
+
+    expect(FloodReport::count())->toBe(0);
+    Storage::disk('public')->assertMissing('flood-reports');
+});
+

@@ -364,6 +364,7 @@ class FloodReportController extends Controller
         return FloodReport::query()
             ->visibleTo($user)
             ->when($request->filled('flood_level'), fn (Builder $query) => $query->where('flood_level', $request->string('flood_level')))
+            ->when($request->filled('flood_type'), fn (Builder $query) => $query->where('flood_type', $request->string('flood_type')))
             ->when($request->filled('alert_level'), fn (Builder $query) => $query->where('alert_level', $request->string('alert_level')))
             ->when($request->filled('status'), fn (Builder $query) => $query->where('status', $request->string('status')))
             ->when($request->filled('barangay_id') && $user->hasAbility(UserAbility::ViewAllBarangays), fn (Builder $query) => $query->where('barangay_id', $request->integer('barangay_id')))

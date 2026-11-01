@@ -181,6 +181,39 @@ it('applies one free-text match to the queue and the export', function () {
         ->and($reporterRows[1][exportColumnIndex($reporterRows[0], 'reporter_name')])->toBe('Maria Santos');
 });
 
+it('applies the flood-type filter to the queue and the export', function () {
+    $staff = User::factory()->staff()->create();
+    $barangay = Barangay::factory()->create();
+
+    $river = exportReport($barangay, null, ['flood_type' => FloodType::RiverOverflow]);
+    $pond = exportReport($barangay, null, ['flood_type' => FloodType::Ponding]);
+    $legacy = exportReport($barangay, null, ['flood_type' => null]);
+
+    $token = $staff->createToken('t')->plainTextToken;
+
+    $queue = $this->withToken($token)
+        ->getJson('/api/flood-reports?flood_type=ponding')
+        ->assertOk()
+        ->json('data');
+
+    expect(collect($queue)->pluck('id')->all())->toBe([$pond->id]);
+
+    $export = $this->withToken($token)->get('/api/flood-reports/export?flood_type=ponding');
+    $rows = exportCsvRows($export->streamedContent());
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows[1][exportColumnIndex($rows[0], 'report_id')])->toBe((string) $pond->id)
+        ->and($rows[1][exportColumnIndex($rows[0], 'flood_type')])->toBe(FloodType::Ponding->label());
+
+    $unfiltered = $this->withToken($token)
+        ->getJson('/api/flood-reports')
+        ->assertOk()
+        ->json('data');
+
+    expect(collect($unfiltered)->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$river->id, $pond->id, $legacy->id])->sort()->values()->all());
+});
+
 it('treats wildcards literally and escapes delimiters, quotes, and newlines', function () {
     $staff = User::factory()->staff()->create();
     $barangay = Barangay::factory()->create();
@@ -256,6 +289,7 @@ it('validates the filter contract', function (string $query) {
 })->with([
     'unknown status' => 'status=archived',
     'unknown alert tier' => 'alert_level=level_4',
+    'unknown flood type' => 'flood_type=flash_flood',
     'inverted date window' => 'from=2026-11-02&to=2026-11-01',
     'overlong search term' => 'q='.str_repeat('a', 101),
     'unknown barangay' => 'barangay_id=999999',

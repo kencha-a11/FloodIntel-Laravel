@@ -5,6 +5,7 @@ namespace App\Http\Requests\Report;
 use App\Enums\AlertLevel;
 use App\Enums\FloodLevel;
 use App\Enums\FloodReportStatus;
+use App\Enums\FloodType;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -35,6 +36,7 @@ class ReportLogFiltersRequest extends FormRequest
         return [
             'q' => ['nullable', 'string', 'max:100'],
             'flood_level' => ['nullable', Rule::enum(FloodLevel::class)],
+            'flood_type' => ['nullable', Rule::enum(FloodType::class)],
             'alert_level' => ['nullable', Rule::enum(AlertLevel::class)],
             'status' => ['nullable', Rule::enum(FloodReportStatus::class)],
             'barangay_id' => ['nullable', 'integer', 'exists:barangays,id'],

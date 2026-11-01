@@ -59,6 +59,30 @@ it('reports realtime as disabled when the deployment is not configured', functio
         ->assertHeader('Cache-Control', 'no-store, private');
 });
 
+it('reports realtime as disabled when only one side of the deployment is configured', function () {
+    $user = User::factory()->officer()->create();
+    $token = $user->createToken('t')->plainTextToken;
+
+    config(['services.supabase.anon_key' => null]);
+
+    $this->withToken($token)
+        ->getJson('/api/realtime/authorization')
+        ->assertOk()
+        ->assertJsonPath('data.enabled', false)
+        ->assertJsonMissingPath('data.token');
+
+    config([
+        'services.supabase.anon_key' => 'anon-key',
+        'services.supabase.service_role_key' => null,
+    ]);
+
+    $this->withToken($token)
+        ->getJson('/api/realtime/authorization')
+        ->assertOk()
+        ->assertJsonPath('data.enabled', false)
+        ->assertJsonMissingPath('data.token');
+});
+
 it('derives a command-center scope and a signed token on the server', function () {
     $user = User::factory()->officer()->create();
 

@@ -130,6 +130,15 @@ it('stays silent when realtime is not configured', function () {
     Http::assertNothingSent();
 });
 
+it('stays silent when the service-role key is missing', function () {
+    config(['services.supabase.service_role_key' => null]);
+    Http::fake();
+
+    app(ReportBroadcast::class)->created(realtimeReport());
+
+    Http::assertNothingSent();
+});
+
 it('logs a rejected publish instead of failing the write', function () {
     Http::fake(['project.supabase.co/*' => Http::response(['message' => 'rejected'], 500)]);
 

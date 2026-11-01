@@ -67,6 +67,9 @@ class StoreFloodReportRequest extends FormRequest
             'photo' => ['required', 'image', 'mimes:jpeg,png,webp'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'reported_at' => ['nullable', 'date', 'before_or_equal:now'],
+            // Opaque per-reporter idempotency key (D-110); the queue's own item
+            // id, which is not always UUID-shaped.
+            'client_uuid' => ['nullable', 'string', 'max:64'],
             // A correction answers a return in the same barangay (FR-14); the
             // head check runs again under lock in the controller.
             'supersedes_id' => [

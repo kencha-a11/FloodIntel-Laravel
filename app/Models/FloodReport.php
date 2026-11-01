@@ -30,7 +30,7 @@ use LogicException;
     'depth_cm', 'landmark', 'latitude', 'longitude',
     'gps_accuracy', 'address', 'photo_path', 'notes', 'reported_at', 'status',
     'anomaly_flags', 'rejected_at', 'rejected_by', 'rejection_reason',
-    'supersedes_id',
+    'supersedes_id', 'client_uuid',
 ])]
 #[Appends(['photo_url'])]
 #[UsePolicy(FloodReportPolicy::class)]

@@ -59,6 +59,7 @@ class FloodReportResource extends JsonResource
                 ->all(),
             'rejection_reason' => $this->rejection_reason,
             'rejected_at' => $this->rejected_at,
+            'client_uuid' => $this->client_uuid,
             'supersedes_id' => $this->supersedes_id,
             'superseded_by_id' => $this->whenLoaded(
                 'supersededBy',

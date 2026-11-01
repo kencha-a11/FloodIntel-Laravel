@@ -27,6 +27,7 @@ use App\Support\ImageSanitizer;
 use App\Support\InvalidUploadedImage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
@@ -209,6 +210,15 @@ class FloodReportController extends Controller
             ], 422);
         }
 
+        // A replay is answered before any side effect, so the second request
+        // stores no second photo (D-8, D-110).
+        $clientUuid = $request->validated('client_uuid');
+        $existing = $clientUuid === null ? null : $this->findByClientUuid($user, $clientUuid);
+
+        if ($existing !== null) {
+            return $this->reportResponse($existing, 200);
+        }
+
         // Resolve the correction target before the photo is stored, so a
         // refused correction leaves no orphan file.
         $this->correctionTarget($request, $user);
@@ -219,40 +229,54 @@ class FloodReportController extends Controller
         $longitude = (float) $request->input('longitude');
         $reportedAt = $request->date('reported_at') ?? now();
 
-        $report = DB::transaction(function () use ($request, $user, $path, $latitude, $longitude, $reportedAt, $anomalyDetector, $transitions): FloodReport {
-            $previous = $this->correctionTarget($request, $user, lock: true);
+        try {
+            $report = DB::transaction(function () use ($request, $user, $path, $latitude, $longitude, $reportedAt, $anomalyDetector, $transitions, $clientUuid): FloodReport {
+                $previous = $this->correctionTarget($request, $user, lock: true);
 
-            $report = FloodReport::create([
-                'user_id' => $user->id,
-                'barangay_id' => $user->barangay_id,
-                'flood_level' => $request->input('flood_level'),
-                'alert_level' => $request->input('alert_level'),
-                'flood_type' => $request->input('flood_type'),
-                'depth_cm' => $request->input('depth_cm'),
-                'landmark' => $request->input('landmark'),
-                'latitude' => $latitude,
-                'longitude' => $longitude,
-                'gps_accuracy' => $request->input('gps_accuracy'),
-                'photo_path' => $path,
-                'notes' => $request->input('notes'),
-                'reported_at' => $reportedAt,
-                'status' => FloodReportStatus::Submitted,
-                'anomaly_flags' => $anomalyDetector->detect($user, $latitude, $longitude, $reportedAt),
-                'supersedes_id' => $previous?->id,
-            ]);
+                $report = FloodReport::create([
+                    'user_id' => $user->id,
+                    'barangay_id' => $user->barangay_id,
+                    'client_uuid' => $clientUuid,
+                    'flood_level' => $request->input('flood_level'),
+                    'alert_level' => $request->input('alert_level'),
+                    'flood_type' => $request->input('flood_type'),
+                    'depth_cm' => $request->input('depth_cm'),
+                    'landmark' => $request->input('landmark'),
+                    'latitude' => $latitude,
+                    'longitude' => $longitude,
+                    'gps_accuracy' => $request->input('gps_accuracy'),
+                    'photo_path' => $path,
+                    'notes' => $request->input('notes'),
+                    'reported_at' => $reportedAt,
+                    'status' => FloodReportStatus::Submitted,
+                    'anomaly_flags' => $anomalyDetector->detect($user, $latitude, $longitude, $reportedAt),
+                    'supersedes_id' => $previous?->id,
+                ]);
 
-            $transitions->submit($report, $user);
+                $transitions->submit($report, $user);
 
-            return $report;
-        });
+                return $report;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            // A concurrent replay won the unique index between the look-up and
+            // the insert. The photo this request stored belongs to no row, so
+            // it is deleted and the winner is returned (D-110).
+            Storage::disk('public')->delete($path);
+
+            $winner = $clientUuid === null ? null : $this->findByClientUuid($user, $clientUuid);
+
+            if ($winner === null) {
+                throw $exception;
+            }
+
+            return $this->reportResponse($winner, 200);
+        }
 
         $broadcast->created($report);
 
         ResolveReportAddress::dispatchAfterResponse($report->id);
 
-        return (new FloodReportResource($report->load(['user', 'barangay', 'supersedes.statusChanges'])))
-            ->response()
-            ->setStatusCode(201);
+        return $this->reportResponse($report, 201);
     }
 
     /**
@@ -486,6 +510,21 @@ class FloodReportController extends Controller
                 'supersededBy',
             ]),
         );
+    }
+
+    private function findByClientUuid(User $user, string $clientUuid): ?FloodReport
+    {
+        return FloodReport::query()
+            ->where('user_id', $user->id)
+            ->where('client_uuid', $clientUuid)
+            ->first();
+    }
+
+    private function reportResponse(FloodReport $report, int $status): JsonResponse
+    {
+        return (new FloodReportResource(
+            $report->load(['user', 'barangay', 'supersedes.statusChanges']),
+        ))->response()->setStatusCode($status);
     }
 
     private function storePhoto(UploadedFile $photo, int $userId): string

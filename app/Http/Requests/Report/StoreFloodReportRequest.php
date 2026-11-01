@@ -16,12 +16,6 @@ use Illuminate\Validation\Rule;
 class StoreFloodReportRequest extends FormRequest
 {
     /**
-     * Mirrors the client's MAX_PHOTO_BYTES; the client compresses to a 1 MB
-     * target, so only a payload queued by an older build reaches this ceiling.
-     */
-    private const MAX_PHOTO_BYTES = 5120 * 1024;
-
-    /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
@@ -97,7 +91,7 @@ class StoreFloodReportRequest extends FormRequest
             if (
                 $photo instanceof UploadedFile
                 && $photo->isValid()
-                && $photo->getSize() > self::MAX_PHOTO_BYTES
+                && $photo->getSize() > (int) config('uploads.photo_bytes')
             ) {
                 $message = 'The photo is larger than the 5 MB upload limit.';
                 $validator->errors()->add('photo', $message);

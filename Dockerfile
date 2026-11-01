@@ -25,12 +25,19 @@ RUN composer install \
         --optimize-autoloader \
         --prefer-dist
 
+# The upload limits sit above config/uploads.php's ceiling (a 6 MB request,
+# a 5 MB photo), so the application's own 413 and 422 answers arrive before
+# PHP discards an oversized body.
 RUN { \
         echo 'opcache.enable=1'; \
         echo 'opcache.memory_consumption=192'; \
         echo 'opcache.max_accelerated_files=20000'; \
         echo 'opcache.validate_timestamps=0'; \
     } > /usr/local/etc/php/conf.d/opcache-recommended.ini \
+    && { \
+        echo 'upload_max_filesize=6M'; \
+        echo 'post_max_size=7M'; \
+    } > /usr/local/etc/php/conf.d/uploads.ini \
     && printf '\nclear_env = no\ncatch_workers_output = yes\n' >> /usr/local/etc/php-fpm.d/www.conf \
     && chown -R www-data:www-data storage bootstrap/cache
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\RejectOversizedRequests;
 use App\Http\Middleware\SetDatabaseIdentity;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -17,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // The declared request-body ceiling answers first, before routing,
+        // auth, or PHP's own post_max_size message can.
+        $middleware->prepend(RejectOversizedRequests::class);
+
         // Proxy trust is applied in AppServiceProvider::boot(), not here: this
         // callback runs before the environment and config are loaded, so a
         // config read at this point is always empty. Trusting every proxy

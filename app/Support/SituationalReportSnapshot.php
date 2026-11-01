@@ -20,7 +20,7 @@ final class SituationalReportSnapshot
      */
     public const FORMAT_VERSION = '1';
 
-    public const STAGE_TWO_REASON = 'Impact report data is not collected yet (module 03); affected families and individuals cannot be published.';
+    public const STAGE_TWO_REASON = 'Impact aggregation is not implemented yet; affected families and individuals are unavailable in this revision.';
 
     /**
      * @param  array{basis: string, validated: int, pending: int, returned: int, rejected: int}  $statusCounts

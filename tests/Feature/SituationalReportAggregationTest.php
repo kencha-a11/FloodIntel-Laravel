@@ -254,7 +254,7 @@ it('lists every barangay and never claims zero when nothing was filed', function
         ->and($snapshot->stageTwo['available'])->toBeFalse()
         ->and($snapshot->stageTwo['affected_families'])->toBeNull()
         ->and($snapshot->stageTwo['affected_individuals'])->toBeNull()
-        ->and($snapshot->stageTwo['reason'])->toContain('module 03');
+        ->and($snapshot->stageTwo['reason'])->toContain('not implemented');
 });
 
 it('refuses to edit or delete a stored revision and its provenance', function () {

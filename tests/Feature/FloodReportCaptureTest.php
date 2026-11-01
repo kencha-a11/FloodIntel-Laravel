@@ -191,19 +191,25 @@ it('requires a photo', function () {
         ->assertJsonValidationErrors(['photo']);
 });
 
-it('rejects a photo larger than 5MB', function () {
+it('names a photo size rejection on its own key', function () {
     Storage::fake('public');
 
     $tanod = User::factory()->tanod()->create();
 
     $payload = floodReportPayload([
-        'photo' => UploadedFile::fake()->create('big.jpg', 5121, 'image/jpeg'),
+        'photo' => UploadedFile::fake()
+            ->createWithContent('big.jpg', testJpegBytes())
+            ->size(5121),
     ]);
 
     $this->withToken($tanod->createToken('t')->plainTextToken)
         ->post('/api/flood-reports', $payload)
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['photo']);
+        ->assertJsonValidationErrors(['photo', 'photo_size'])
+        ->assertJsonPath(
+            'errors.photo_size.0',
+            'The photo is larger than the 5 MB upload limit.',
+        );
 });
 
 it('stores a rebuilt photo with no metadata and a server-chosen name', function () {
@@ -248,7 +254,8 @@ it('refuses a photo that carries data after its image end', function () {
             'photo' => new UploadedFile($path, 'flood.jpg', 'image/jpeg', null, true),
         ]))
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['photo']);
+        ->assertJsonValidationErrors(['photo'])
+        ->assertJsonMissingPath('errors.photo_size');
 
     expect(FloodReport::count())->toBe(0)
         ->and(Storage::disk('public')->allFiles())->toBe([]);

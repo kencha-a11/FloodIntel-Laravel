@@ -165,6 +165,7 @@ it('admits only the captain to submit impact reports', function (UserRole $role,
             'event_id' => $event->id,
             'families' => 4,
             'individuals' => 12,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
         ])
         ->assertStatus($status);
 })->with([
@@ -433,6 +434,7 @@ it('stamps an impact report with the caller identity, not the payload', function
             'individuals' => 12,
             'user_id' => User::factory()->officer()->create()->id,
             'barangay_id' => $foreign->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
         ])
         ->assertCreated()
         ->assertJsonPath('data.user_id', $captain->id)

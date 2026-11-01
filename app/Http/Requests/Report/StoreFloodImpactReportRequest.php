@@ -33,7 +33,7 @@ class StoreFloodImpactReportRequest extends FormRequest
                 ),
             ],
             'remarks' => ['nullable', 'string', 'max:2000'],
-            'reported_at' => ['nullable', 'date', 'before_or_equal:now'],
+            'reported_at' => ['required', 'date', 'before_or_equal:now'],
             'client_uuid' => ['nullable', 'string', 'max:64'],
             // The chain head is checked inside the transaction, not here: a
             // replay of a correction carries the same key and points at the

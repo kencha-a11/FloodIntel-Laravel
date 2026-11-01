@@ -38,6 +38,7 @@ it('files an impact report against the captain barangay', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 12,
             'individuals' => 48,
             'remarks' => 'Water reached the second step of the barangay hall.',
@@ -56,6 +57,7 @@ it('refuses an impact report for a closed event', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 1,
             'individuals' => 1,
         ])
@@ -72,6 +74,7 @@ it('refuses more families than individuals', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 5,
             'individuals' => 4,
         ])
@@ -95,6 +98,7 @@ it('supersedes the previous report when correcting it', function () {
     $this->withToken($token)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 20,
             'individuals' => 80,
             'supersedes_id' => $previous->id,
@@ -114,6 +118,7 @@ it('refuses to correct a report from another barangay', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 3,
             'individuals' => 9,
             'supersedes_id' => $foreign->id,
@@ -137,6 +142,7 @@ it('refuses to correct a report filed against another event', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 3,
             'individuals' => 9,
             'supersedes_id' => $previous->id,
@@ -158,6 +164,7 @@ it('refuses to correct a report that is already superseded', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 3,
             'individuals' => 9,
             'supersedes_id' => $previous->id,
@@ -213,6 +220,7 @@ it('stores related level reports from the captain barangay', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 4,
             'individuals' => 12,
             'related_level_report_ids' => [$first->id, $second->id],
@@ -232,6 +240,7 @@ it('refuses a related level report from another barangay', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 4,
             'individuals' => 12,
             'related_level_report_ids' => [$foreign->id],
@@ -249,6 +258,7 @@ it('refuses a related level report that does not exist', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 1,
             'individuals' => 1,
             'related_level_report_ids' => [999999],
@@ -266,6 +276,7 @@ it('refuses the same related level report twice', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 2,
             'individuals' => 6,
             'related_level_report_ids' => [$report->id, $report->id],
@@ -287,10 +298,53 @@ it('caps the related level report list at fifty', function () {
     $this->withToken($captain->createToken('t')->plainTextToken)
         ->postJson('/api/flood-impact-reports', [
             'event_id' => $event->id,
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
             'families' => 2,
             'individuals' => 6,
             'related_level_report_ids' => $ids,
         ])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('related_level_report_ids');
+});
+
+it('requires the observation time instead of substituting the server clock', function () {
+    $captain = User::factory()->captain()->forBarangay(Barangay::factory()->create())->create();
+    $event = FloodEvent::factory()->create();
+
+    $this->withToken($captain->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-impact-reports', [
+            'event_id' => $event->id,
+            'families' => 2,
+            'individuals' => 6,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reported_at');
+
+    expect(FloodImpactReport::query()->count())->toBe(0);
+});
+
+it('stores the instant the captain reported rather than the receipt time', function () {
+    $captain = User::factory()->captain()->forBarangay(Barangay::factory()->create())->create();
+    $event = FloodEvent::factory()->create();
+    $observedAt = now()->subHours(3)->startOfSecond();
+
+    $this->withToken($captain->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-impact-reports', [
+            'event_id' => $event->id,
+            'families' => 2,
+            'individuals' => 6,
+            'reported_at' => $observedAt->toIso8601String(),
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.reported_at', $observedAt->toJSON());
+
+    expect(FloodImpactReport::firstOrFail()->reported_at->toJSON())
+        ->toBe($observedAt->toJSON());
+});
+
+it('refuses to change a stored observation time', function () {
+    $report = FloodImpactReport::factory()->create();
+
+    expect(fn () => $report->update(['reported_at' => now()->subDay()]))
+        ->toThrow(LogicException::class, 'The observation time is immutable.');
 });

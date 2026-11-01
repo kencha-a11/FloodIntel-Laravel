@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use LogicException;
 
 #[Fillable([
     'user_id', 'barangay_id', 'event_id', 'families', 'individuals',
@@ -66,5 +67,17 @@ class FloodImpactReport extends Model
         }
 
         return $query->where('user_id', $user->id);
+    }
+
+    /**
+     * The observation time is written once, by the filing request (FR-13).
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (FloodImpactReport $report): void {
+            if ($report->isDirty('reported_at')) {
+                throw new LogicException('The observation time is immutable.');
+            }
+        });
     }
 }

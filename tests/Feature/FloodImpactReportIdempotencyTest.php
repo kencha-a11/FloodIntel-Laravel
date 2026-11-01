@@ -32,6 +32,7 @@ function impactIdempotencyPayload(FloodEvent $event, array $overrides = []): arr
         'families' => 12,
         'individuals' => 48,
         'remarks' => 'Water reached the second step of the barangay hall.',
+        'reported_at' => now()->subMinutes(5)->toIso8601String(),
     ], $overrides);
 
     foreach ($overrides as $key => $value) {

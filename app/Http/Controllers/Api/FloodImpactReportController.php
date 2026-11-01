@@ -82,7 +82,7 @@ class FloodImpactReportController extends Controller
                     'related_level_report_ids' => $request->input('related_level_report_ids'),
                     'remarks' => $request->input('remarks'),
                     'supersedes_id' => $previous?->id,
-                    'reported_at' => $request->input('reported_at') ?: now(),
+                    'reported_at' => $request->input('reported_at'),
                     'status' => FloodImpactStatus::Submitted,
                 ]);
 

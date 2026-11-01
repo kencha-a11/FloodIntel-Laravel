@@ -4,6 +4,7 @@ namespace App\Http\Requests\Report;
 
 use App\Enums\AlertLevel;
 use App\Enums\FloodLevel;
+use App\Enums\FloodReportStatus;
 use App\Enums\FloodType;
 use App\Models\FloodReport;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -58,6 +59,17 @@ class StoreFloodReportRequest extends FormRequest
             'photo' => ['required', 'image', 'max:5120', 'mimes:jpeg,png,webp'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'reported_at' => ['nullable', 'date', 'before_or_equal:now'],
+            // A correction answers a return in the same barangay (FR-14); the
+            // head check runs again under lock in the controller.
+            'supersedes_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('flood_reports', 'id')->where(
+                    fn ($query) => $query
+                        ->where('barangay_id', $this->user()->barangay_id)
+                        ->where('status', FloodReportStatus::Returned->value),
+                ),
+            ],
         ];
     }
 }

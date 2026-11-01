@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\AnomalyFlag;
+use App\Enums\FloodReportStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -58,6 +59,22 @@ class FloodReportResource extends JsonResource
                 ->all(),
             'rejection_reason' => $this->rejection_reason,
             'rejected_at' => $this->rejected_at,
+            'supersedes_id' => $this->supersedes_id,
+            'superseded_by_id' => $this->whenLoaded(
+                'supersededBy',
+                fn () => $this->supersededBy?->id,
+            ),
+            'supersedes' => $this->whenLoaded(
+                'supersedes',
+                fn () => $this->supersedes === null ? null : [
+                    'id' => $this->supersedes->id,
+                    'status' => $this->supersedes->status->value,
+                    'status_label' => $this->supersedes->status->label(),
+                    'reported_at' => $this->supersedes->reported_at,
+                    'returned_reason' => $this->supersedes->statusChanges
+                        ->firstWhere('to_status', FloodReportStatus::Returned)?->reason,
+                ],
+            ),
             'created_at' => $this->created_at,
         ];
     }

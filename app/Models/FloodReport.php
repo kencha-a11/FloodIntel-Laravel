@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 use LogicException;
 
@@ -29,6 +30,7 @@ use LogicException;
     'depth_cm', 'landmark', 'latitude', 'longitude',
     'gps_accuracy', 'address', 'photo_path', 'notes', 'reported_at', 'status',
     'anomaly_flags', 'rejected_at', 'rejected_by', 'rejection_reason',
+    'supersedes_id',
 ])]
 #[Appends(['photo_url'])]
 #[UsePolicy(FloodReportPolicy::class)]
@@ -97,6 +99,26 @@ class FloodReport extends Model
     public function statusChanges(): HasMany
     {
         return $this->hasMany(FloodReportStatusChange::class)->orderBy('id');
+    }
+
+    /**
+     * Get the report this one corrects (FR-14).
+     *
+     * @return BelongsTo<FloodReport, $this>
+     */
+    public function supersedes(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'supersedes_id');
+    }
+
+    /**
+     * Get the correction filed against this report, if any.
+     *
+     * @return HasOne<FloodReport, $this>
+     */
+    public function supersededBy(): HasOne
+    {
+        return $this->hasOne(self::class, 'supersedes_id');
     }
 
     /**

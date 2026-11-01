@@ -57,7 +57,7 @@ class FloodReportController extends Controller
     public function index(ReportLogFiltersRequest $request): AnonymousResourceCollection
     {
         $reports = $this->filteredReports($request)
-            ->with(['user', 'barangay'])
+            ->with(['user', 'barangay', 'supersededBy'])
             ->paginate($request->integer('per_page', 15));
 
         return FloodReportResource::collection($reports);
@@ -209,6 +209,10 @@ class FloodReportController extends Controller
             ], 422);
         }
 
+        // Resolve the correction target before the photo is stored, so a
+        // refused correction leaves no orphan file.
+        $this->correctionTarget($request, $user);
+
         $path = $this->storePhoto($request->file('photo'), $user->id);
 
         $latitude = (float) $request->input('latitude');
@@ -216,6 +220,8 @@ class FloodReportController extends Controller
         $reportedAt = $request->date('reported_at') ?? now();
 
         $report = DB::transaction(function () use ($request, $user, $path, $latitude, $longitude, $reportedAt, $anomalyDetector, $transitions): FloodReport {
+            $previous = $this->correctionTarget($request, $user, lock: true);
+
             $report = FloodReport::create([
                 'user_id' => $user->id,
                 'barangay_id' => $user->barangay_id,
@@ -232,6 +238,7 @@ class FloodReportController extends Controller
                 'reported_at' => $reportedAt,
                 'status' => FloodReportStatus::Submitted,
                 'anomaly_flags' => $anomalyDetector->detect($user, $latitude, $longitude, $reportedAt),
+                'supersedes_id' => $previous?->id,
             ]);
 
             $transitions->submit($report, $user);
@@ -243,7 +250,7 @@ class FloodReportController extends Controller
 
         ResolveReportAddress::dispatchAfterResponse($report->id);
 
-        return (new FloodReportResource($report->load(['user', 'barangay'])))
+        return (new FloodReportResource($report->load(['user', 'barangay', 'supersedes.statusChanges'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -255,7 +262,13 @@ class FloodReportController extends Controller
     {
         $this->authorize('view', $floodReport);
 
-        return new FloodReportResource($floodReport->load(['user', 'barangay', 'statusChanges']));
+        return new FloodReportResource($floodReport->load([
+            'user',
+            'barangay',
+            'statusChanges',
+            'supersedes.statusChanges',
+            'supersededBy',
+        ]));
     }
 
     /**
@@ -425,10 +438,52 @@ class FloodReportController extends Controller
         ];
     }
 
+    /**
+     * Resolve the returned report a submission corrects (FR-14).
+     *
+     * The target must be visible to the filer, still `returned`, and the head
+     * of its chain: a correction answers a return, and a report is corrected
+     * once. Callers pass `$lock` inside the write transaction so two
+     * corrections of the same report cannot both pass the head check.
+     */
+    private function correctionTarget(
+        StoreFloodReportRequest $request,
+        User $user,
+        bool $lock = false,
+    ): ?FloodReport {
+        if (! $request->filled('supersedes_id')) {
+            return null;
+        }
+
+        $report = FloodReport::query()
+            ->visibleTo($user)
+            ->when($lock, fn (Builder $query) => $query->lockForUpdate())
+            ->find((int) $request->input('supersedes_id'));
+
+        if (
+            $report === null
+            || $report->status !== FloodReportStatus::Returned
+            || $report->supersededBy()->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'supersedes_id' => 'Only the current returned report in a chain can be corrected.',
+            ]);
+        }
+
+        return $report;
+    }
+
     private function detail(FloodReport $floodReport): FloodReportResource
     {
         return new FloodReportResource(
-            $floodReport->load(['user', 'barangay', 'rejectedBy', 'statusChanges']),
+            $floodReport->load([
+                'user',
+                'barangay',
+                'rejectedBy',
+                'statusChanges',
+                'supersedes.statusChanges',
+                'supersededBy',
+            ]),
         );
     }
 

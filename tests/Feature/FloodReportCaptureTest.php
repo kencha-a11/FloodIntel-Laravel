@@ -496,6 +496,45 @@ it('validates latitude and longitude ranges', function () {
         ->assertJsonValidationErrors(['longitude']);
 });
 
+it('refuses a report with no observation time and stores nothing', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload(['reported_at' => null]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['reported_at']);
+
+    expect(FloodReport::count())->toBe(0)
+        ->and(Storage::disk('public')->allFiles())->toBe([]);
+});
+
+it('stores the client observation time and keeps created_at as the receipt', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+    $observedAt = now()->subMinutes(47)->startOfSecond();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload([
+            'reported_at' => $observedAt->toIso8601String(),
+        ]))
+        ->assertCreated();
+
+    $report = FloodReport::sole();
+
+    expect($report->reported_at->timestamp)->toBe($observedAt->timestamp)
+        ->and($report->created_at->timestamp)->toBeGreaterThan($observedAt->timestamp);
+});
+
+it('refuses to change a stored observation time', function () {
+    $report = FloodReport::factory()->create();
+
+    expect(fn () => $report->update(['reported_at' => now()->addMinute()]))
+        ->toThrow(LogicException::class, 'The observation time is immutable.');
+});
+
 it('rejects a future reported_at', function () {
     Storage::fake('public');
 

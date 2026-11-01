@@ -227,7 +227,9 @@ class FloodReportController extends Controller
 
         $latitude = (float) $request->input('latitude');
         $longitude = (float) $request->input('longitude');
-        $reportedAt = $request->date('reported_at') ?? now();
+        // The request requires the observation time, and the server never
+        // substitutes its own clock for it (fallback rule 2).
+        $reportedAt = $request->date('reported_at');
 
         try {
             $report = DB::transaction(function () use ($request, $user, $path, $latitude, $longitude, $reportedAt, $anomalyDetector, $transitions, $clientUuid): FloodReport {

@@ -66,7 +66,7 @@ class StoreFloodReportRequest extends FormRequest
             'gps_accuracy' => ['nullable', 'numeric', 'min:0'],
             'photo' => ['required', 'image', 'mimes:jpeg,png,webp'],
             'notes' => ['nullable', 'string', 'max:1000'],
-            'reported_at' => ['nullable', 'date', 'before_or_equal:now'],
+            'reported_at' => ['required', 'date', 'before_or_equal:now'],
             // Opaque per-reporter idempotency key (D-110); the queue's own item
             // id, which is not always UUID-shaped.
             'client_uuid' => ['nullable', 'string', 'max:64'],

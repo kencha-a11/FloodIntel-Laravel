@@ -20,8 +20,18 @@ class StoreFloodImpactReportRequest extends FormRequest
             'families' => ['required', 'integer', 'min:0'],
             'individuals' => ['required', 'integer', 'min:0', 'gte:families'],
             'breakdown' => ['nullable', 'array'],
-            'related_level_report_ids' => ['nullable', 'array'],
-            'related_level_report_ids.*' => ['integer', 'exists:flood_reports,id'],
+            'related_level_report_ids' => ['nullable', 'array', 'max:50'],
+            // The link is a reference to evidence the filer can see: a level
+            // report from another barangay would cite data the captain is not
+            // allowed to read (D-118). The level table has no event column, so
+            // the barangay is the scope that exists rather than the event.
+            'related_level_report_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('flood_reports', 'id')->where(
+                    fn ($query) => $query->where('barangay_id', $this->user()->barangay_id),
+                ),
+            ],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'reported_at' => ['nullable', 'date', 'before_or_equal:now'],
             'client_uuid' => ['nullable', 'string', 'max:64'],

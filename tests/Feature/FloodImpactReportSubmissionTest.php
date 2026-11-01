@@ -3,6 +3,7 @@
 use App\Models\Barangay;
 use App\Models\FloodEvent;
 use App\Models\FloodImpactReport;
+use App\Models\FloodReport;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -200,4 +201,96 @@ it('lets an officer list every barangay', function () {
         ->getJson('/api/flood-impact-reports')
         ->assertOk()
         ->assertJsonCount(2, 'data');
+});
+
+it('stores related level reports from the captain barangay', function () {
+    $barangay = Barangay::factory()->create();
+    $captain = User::factory()->captain()->forBarangay($barangay)->create();
+    $event = FloodEvent::factory()->create();
+    $first = FloodReport::factory()->create(['barangay_id' => $barangay->id]);
+    $second = FloodReport::factory()->create(['barangay_id' => $barangay->id]);
+
+    $this->withToken($captain->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-impact-reports', [
+            'event_id' => $event->id,
+            'families' => 4,
+            'individuals' => 12,
+            'related_level_report_ids' => [$first->id, $second->id],
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.related_level_report_ids', [$first->id, $second->id]);
+});
+
+it('refuses a related level report from another barangay', function () {
+    $barangay = Barangay::factory()->create();
+    $captain = User::factory()->captain()->forBarangay($barangay)->create();
+    $event = FloodEvent::factory()->create();
+    $foreign = FloodReport::factory()->create([
+        'barangay_id' => Barangay::factory()->create()->id,
+    ]);
+
+    $this->withToken($captain->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-impact-reports', [
+            'event_id' => $event->id,
+            'families' => 4,
+            'individuals' => 12,
+            'related_level_report_ids' => [$foreign->id],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('related_level_report_ids.0');
+
+    expect(FloodImpactReport::query()->count())->toBe(0);
+});
+
+it('refuses a related level report that does not exist', function () {
+    $captain = User::factory()->captain()->forBarangay(Barangay::factory()->create())->create();
+    $event = FloodEvent::factory()->create();
+
+    $this->withToken($captain->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-impact-reports', [
+            'event_id' => $event->id,
+            'families' => 1,
+            'individuals' => 1,
+            'related_level_report_ids' => [999999],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('related_level_report_ids.0');
+});
+
+it('refuses the same related level report twice', function () {
+    $barangay = Barangay::factory()->create();
+    $captain = User::factory()->captain()->forBarangay($barangay)->create();
+    $event = FloodEvent::factory()->create();
+    $report = FloodReport::factory()->create(['barangay_id' => $barangay->id]);
+
+    $this->withToken($captain->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-impact-reports', [
+            'event_id' => $event->id,
+            'families' => 2,
+            'individuals' => 6,
+            'related_level_report_ids' => [$report->id, $report->id],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('related_level_report_ids.1');
+});
+
+it('caps the related level report list at fifty', function () {
+    $barangay = Barangay::factory()->create();
+    $captain = User::factory()->captain()->forBarangay($barangay)->create();
+    $event = FloodEvent::factory()->create();
+    $ids = FloodReport::factory()
+        ->count(51)
+        ->create(['barangay_id' => $barangay->id])
+        ->pluck('id')
+        ->all();
+
+    $this->withToken($captain->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-impact-reports', [
+            'event_id' => $event->id,
+            'families' => 2,
+            'individuals' => 6,
+            'related_level_report_ids' => $ids,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('related_level_report_ids');
 });

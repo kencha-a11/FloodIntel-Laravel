@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarangayController;
+use App\Http\Controllers\Api\FloodEventController;
 use App\Http\Controllers\Api\FloodImpactReportController;
 use App\Http\Controllers\Api\FloodReportController;
 use App\Http\Controllers\Api\GeocodeController;
@@ -45,6 +46,8 @@ Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'throttle:auth-sta
     Route::post('/flood-reports', [FloodReportController::class, 'store'])
         ->middleware('throttle:10,1');
     Route::get('/flood-reports/{floodReport}', [FloodReportController::class, 'show']);
+
+    Route::get('/flood-events', [FloodEventController::class, 'index']);
 
     Route::get('/flood-impact-reports', [FloodImpactReportController::class, 'index']);
     Route::post('/flood-impact-reports', [FloodImpactReportController::class, 'store'])

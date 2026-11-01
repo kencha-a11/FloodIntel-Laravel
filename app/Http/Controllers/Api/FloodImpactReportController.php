@@ -10,6 +10,8 @@ use App\Models\FloodEvent;
 use App\Models\FloodImpactReport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class FloodImpactReportController extends Controller
 {
@@ -34,19 +36,46 @@ class FloodImpactReportController extends Controller
             ], 422);
         }
 
-        $report = FloodImpactReport::create([
-            'user_id' => $user->id,
-            'barangay_id' => $user->barangay_id,
-            'event_id' => $event->id,
-            'families' => $request->input('families'),
-            'individuals' => $request->input('individuals'),
-            'breakdown' => $request->input('breakdown'),
-            'related_level_report_ids' => $request->input('related_level_report_ids'),
-            'remarks' => $request->input('remarks'),
-            'supersedes_id' => $request->input('supersedes_id'),
-            'reported_at' => $request->input('reported_at') ?: now(),
-            'status' => FloodImpactStatus::Submitted,
-        ]);
+        $report = DB::transaction(function () use ($request, $user, $event): FloodImpactReport {
+            $previous = null;
+
+            if ($request->filled('supersedes_id')) {
+                $previous = FloodImpactReport::query()
+                    ->lockForUpdate()
+                    ->find((int) $request->input('supersedes_id'));
+
+                // The rule already scopes the target; the lock re-checks the head
+                // in case another correction won the race.
+                if (
+                    $previous === null
+                    || $previous->status !== FloodImpactStatus::Submitted
+                ) {
+                    throw ValidationException::withMessages([
+                        'supersedes_id' => 'Only the current report in a chain can be corrected.',
+                    ]);
+                }
+            }
+
+            // A new row cannot close a cycle: supersedes_id points at an existing
+            // report, and the unique index gives each report at most one superseder.
+            $report = FloodImpactReport::create([
+                'user_id' => $user->id,
+                'barangay_id' => $user->barangay_id,
+                'event_id' => $event->id,
+                'families' => $request->input('families'),
+                'individuals' => $request->input('individuals'),
+                'breakdown' => $request->input('breakdown'),
+                'related_level_report_ids' => $request->input('related_level_report_ids'),
+                'remarks' => $request->input('remarks'),
+                'supersedes_id' => $previous?->id,
+                'reported_at' => $request->input('reported_at') ?: now(),
+                'status' => FloodImpactStatus::Submitted,
+            ]);
+
+            $previous?->update(['status' => FloodImpactStatus::Superseded]);
+
+            return $report;
+        });
 
         return (new FloodImpactReportResource($report->load(['user', 'barangay', 'event'])))
             ->response()

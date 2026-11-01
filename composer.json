@@ -54,6 +54,10 @@
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"
         ],
+        "test:postgres": [
+            "@php artisan config:clear --ansi",
+            "@php vendor/bin/pest -c phpunit.postgres.xml"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

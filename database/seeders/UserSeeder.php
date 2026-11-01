@@ -19,7 +19,8 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        $barangay = Barangay::query()->first() ?? Barangay::factory()->create();
+        $barangay = Barangay::query()->where('is_active', true)->orderBy('code')->first()
+            ?? Barangay::factory()->create();
 
         $accounts = [
             [

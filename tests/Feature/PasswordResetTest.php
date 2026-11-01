@@ -62,16 +62,16 @@ it('resets the password with a valid token and revokes existing tokens', functio
     $this->postJson('/api/reset-password', [
         'token' => $token,
         'email' => $user->email,
-        'password' => 'new-password',
-        'password_confirmation' => 'new-password',
+        'password' => 'new-password1',
+        'password_confirmation' => 'new-password1',
     ])->assertOk();
 
-    expect(Hash::check('new-password', $user->fresh()->password))->toBeTrue()
+    expect(Hash::check('new-password1', $user->fresh()->password))->toBeTrue()
         ->and($user->tokens()->count())->toBe(0);
 
     $this->postJson('/api/login', [
         'login' => $user->email,
-        'password' => 'new-password',
+        'password' => 'new-password1',
     ])->assertOk();
 });
 
@@ -81,8 +81,8 @@ it('rejects an invalid reset token', function () {
     $this->postJson('/api/reset-password', [
         'token' => 'invalid-token',
         'email' => $user->email,
-        'password' => 'new-password',
-        'password_confirmation' => 'new-password',
+        'password' => 'new-password1',
+        'password_confirmation' => 'new-password1',
     ])->assertStatus(422);
 });
 
@@ -93,7 +93,7 @@ it('rejects a mismatched password confirmation', function () {
     $this->postJson('/api/reset-password', [
         'token' => $token,
         'email' => $user->email,
-        'password' => 'new-password',
+        'password' => 'new-password1',
         'password_confirmation' => 'different-password',
     ])->assertUnprocessable()
         ->assertJsonValidationErrors(['password']);

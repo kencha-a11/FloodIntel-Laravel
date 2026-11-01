@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -122,4 +123,101 @@ it('returns null when the provider fails', function () {
         ->getJson('/api/geocode/reverse?latitude=14.5995&longitude=120.9842')
         ->assertOk()
         ->assertJsonPath('data.address', null);
+});
+
+it('bounds provider traffic to one call per interval across users', function () {
+    $this->travelTo(Carbon::parse('2026-10-31 10:00:00'));
+
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response(geocodeResponse()),
+    ]);
+
+    $first = User::factory()->tanod()->create();
+    $second = User::factory()->tanod()->create();
+
+    $this->withToken($first->createToken('t')->plainTextToken)
+        ->getJson('/api/geocode/reverse?latitude=14.5995&longitude=120.9842')
+        ->assertOk()
+        ->assertJsonPath(
+            'data.address',
+            '17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines',
+        );
+
+    $this->withToken($second->createToken('t')->plainTextToken)
+        ->getJson('/api/geocode/reverse?latitude=14.6101&longitude=120.9901')
+        ->assertOk()
+        ->assertJsonPath('data.address', null);
+
+    Http::assertSentCount(1);
+});
+
+it('reopens the budget after the interval and does not cache a denied lookup', function () {
+    $this->travelTo(Carbon::parse('2026-10-31 10:00:00'));
+
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response(geocodeResponse()),
+    ]);
+
+    $tanod = User::factory()->tanod()->create();
+    $token = $tanod->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->getJson('/api/geocode/reverse?latitude=14.5995&longitude=120.9842')
+        ->assertOk()
+        ->assertJsonPath(
+            'data.address',
+            '17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines',
+        );
+
+    $this->withToken($token)
+        ->getJson('/api/geocode/reverse?latitude=14.6101&longitude=120.9901')
+        ->assertOk()
+        ->assertJsonPath('data.address', null);
+
+    Http::assertSentCount(1);
+
+    $this->travel(2)->seconds();
+
+    $this->withToken($token)
+        ->getJson('/api/geocode/reverse?latitude=14.6101&longitude=120.9901')
+        ->assertOk()
+        ->assertJsonPath(
+            'data.address',
+            '17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines',
+        );
+
+    Http::assertSentCount(2);
+});
+
+it('honors retry-after before asking the provider again', function () {
+    $this->travelTo(Carbon::parse('2026-10-31 10:00:00'));
+
+    Http::fake([
+        'nominatim.openstreetmap.org/*' => Http::response([], 429, ['Retry-After' => '3600']),
+    ]);
+
+    $tanod = User::factory()->tanod()->create();
+    $token = $tanod->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->getJson('/api/geocode/reverse?latitude=14.5995&longitude=120.9842')
+        ->assertOk()
+        ->assertJsonPath('data.address', null);
+
+    $this->travel(11)->minutes();
+
+    $this->withToken($token)
+        ->getJson('/api/geocode/reverse?latitude=14.5995&longitude=120.9842')
+        ->assertOk()
+        ->assertJsonPath('data.address', null);
+
+    Http::assertSentCount(1);
+
+    $this->travel(61)->minutes();
+
+    $this->withToken($token)
+        ->getJson('/api/geocode/reverse?latitude=14.5995&longitude=120.9842')
+        ->assertOk();
+
+    Http::assertSentCount(2);
 });

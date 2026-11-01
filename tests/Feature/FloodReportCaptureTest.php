@@ -1,10 +1,12 @@
 <?php
 
 use App\Enums\AlertLevel;
+use App\Enums\AnomalyFlag;
 use App\Enums\FloodLevel;
 use App\Enums\FloodReportStatus;
 use App\Enums\FloodType;
 use App\Enums\UserRole;
+use App\Models\Barangay;
 use App\Models\FloodReport;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -26,7 +28,7 @@ function floodReportPayload(array $overrides = []): array
         'latitude' => 14.5995,
         'longitude' => 120.9842,
         'gps_accuracy' => 12.5,
-        'photo' => UploadedFile::fake()->create('flood.jpg', 100, 'image/jpeg'),
+        'photo' => testPhoto(),
         'notes' => 'Water rising near the school.',
         'reported_at' => now()->subMinutes(5)->toIso8601String(),
     ], $overrides);
@@ -78,7 +80,7 @@ it('lets a captain submit a flood report', function () {
         ->assertCreated();
 });
 
-it('stores a reverse-geocoded address with the report', function () {
+it('fills the address after the report has been stored', function () {
     Storage::fake('public');
 
     Http::fake([
@@ -101,13 +103,31 @@ it('stores a reverse-geocoded address with the report', function () {
     $this->withToken($tanod->createToken('t')->plainTextToken)
         ->post('/api/flood-reports', floodReportPayload())
         ->assertCreated()
-        ->assertJsonPath(
-            'data.address',
-            '17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines',
-        );
+        ->assertJsonPath('data.address', null);
 
     expect(FloodReport::firstOrFail()->address)
         ->toBe('17, Mabini Street, Barangay 5, Tacloban City, Leyte, 6500, Philippines');
+});
+
+it('does not call the geocoder before the report row exists', function () {
+    Storage::fake('public');
+
+    $reportSeenByProvider = null;
+
+    Http::fake(function () use (&$reportSeenByProvider) {
+        $reportSeenByProvider = FloodReport::query()->first();
+
+        return Http::response(['display_name' => 'Mabini Street, Tacloban City, Philippines']);
+    });
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload())
+        ->assertCreated();
+
+    expect($reportSeenByProvider)->not->toBeNull()
+        ->and($reportSeenByProvider->address)->toBeNull();
 });
 
 it('still submits a report when reverse geocoding fails', function () {
@@ -184,6 +204,54 @@ it('rejects a photo larger than 5MB', function () {
         ->post('/api/flood-reports', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['photo']);
+});
+
+it('stores a rebuilt photo with no metadata and a server-chosen name', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+    $app1 = "\xFF\xE1".pack('n', 2 + strlen("Exif\0\0GPSDATA"))."Exif\0\0GPSDATA";
+    $path = tempnam(sys_get_temp_dir(), 'flood-photo-');
+    file_put_contents($path, "\xFF\xD8".$app1.substr(testJpegBytes(), 2));
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload([
+            'photo' => new UploadedFile($path, 'IMG_0001.jpg', 'image/jpeg', null, true),
+        ]))
+        ->assertCreated();
+
+    $report = FloodReport::firstOrFail();
+    $stored = Storage::disk('public')->get($report->photo_path);
+
+    expect($report->photo_path)->toMatch('#^flood-reports/'.$tanod->id.'/\d{4}-\d{2}/[A-Za-z0-9]{40}\.jpg$#')
+        ->and($report->photo_path)->not->toContain('IMG_0001')
+        ->and($stored)->not->toContain('Exif');
+
+    $copy = tempnam(sys_get_temp_dir(), 'flood-stored-');
+    file_put_contents($copy, $stored);
+    $size = getimagesize($copy);
+    unlink($copy);
+
+    expect($size[0])->toBe(1)->and($size[1])->toBe(1);
+});
+
+it('refuses a photo that carries data after its image end', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+    $path = tempnam(sys_get_temp_dir(), 'flood-photo-');
+    file_put_contents($path, testJpegBytes()."<?php echo 'pwned';");
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload([
+            'photo' => new UploadedFile($path, 'flood.jpg', 'image/jpeg', null, true),
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['photo']);
+
+    expect(FloodReport::count())->toBe(0)
+        ->and(Storage::disk('public')->allFiles())->toBe([]);
 });
 
 it('validates the flood level', function () {
@@ -574,3 +642,129 @@ it('rejects submission from a field user with no barangay before storing a photo
     Storage::disk('public')->assertMissing('flood-reports');
 });
 
+function coveredBarangay(string $code = 'PH0305402001'): Barangay
+{
+    return Barangay::factory()->create(['code' => $code]);
+}
+
+it('flags a report whose coordinates fall outside the assigned barangay', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->forBarangay(coveredBarangay())->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload())
+        ->assertCreated()
+        ->assertJsonPath('data.status', FloodReportStatus::Submitted->value)
+        ->assertJsonFragment([
+            'value' => AnomalyFlag::GpsOutsideBarangay->value,
+            'label' => AnomalyFlag::GpsOutsideBarangay->label(),
+        ]);
+
+    expect(FloodReport::firstOrFail()->anomaly_flags->all())
+        ->toContain(AnomalyFlag::GpsOutsideBarangay);
+});
+
+it('does not flag a report inside the assigned barangay', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->forBarangay(coveredBarangay())->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload([
+            'latitude' => 14.9606074,
+            'longitude' => 120.8282337,
+            'reported_at' => now()->toIso8601String(),
+        ]))
+        ->assertCreated()
+        ->assertJsonPath('data.anomaly_flags', []);
+});
+
+it('flags a report that lands inside a different barangay', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->forBarangay(coveredBarangay('PH0305402001'))->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload([
+            'latitude' => 14.9793295,
+            'longitude' => 120.8536699,
+            'reported_at' => now()->toIso8601String(),
+        ]))
+        ->assertCreated()
+        ->assertJsonFragment(['value' => AnomalyFlag::GpsOutsideBarangay->value]);
+});
+
+it('does not flag when containment cannot answer', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload([
+            'reported_at' => now()->toIso8601String(),
+        ]))
+        ->assertCreated()
+        ->assertJsonPath('data.anomaly_flags', []);
+});
+
+it('flags a second report from the same reporter inside the duplicate window', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+    $token = $tanod->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->post('/api/flood-reports', floodReportPayload([
+            'reported_at' => now()->subMinutes(10)->toIso8601String(),
+        ]))
+        ->assertCreated()
+        ->assertJsonPath('data.anomaly_flags', []);
+
+    $this->withToken($token)
+        ->post('/api/flood-reports', floodReportPayload([
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
+        ]))
+        ->assertCreated()
+        ->assertJsonFragment(['value' => AnomalyFlag::DuplicateWindow->value]);
+});
+
+it('does not flag a second report outside the duplicate window', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+    $token = $tanod->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->post('/api/flood-reports', floodReportPayload([
+            'reported_at' => now()->subMinutes(60)->toIso8601String(),
+        ]))
+        ->assertCreated();
+
+    $this->withToken($token)
+        ->post('/api/flood-reports', floodReportPayload([
+            'reported_at' => now()->subMinutes(5)->toIso8601String(),
+        ]))
+        ->assertCreated()
+        ->assertJsonPath('data.anomaly_flags', []);
+});
+
+it('flags a report whose observed time is far behind its receipt', function () {
+    Storage::fake('public');
+    Http::fake();
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload([
+            'reported_at' => now()->subHours(2)->toIso8601String(),
+        ]))
+        ->assertCreated()
+        ->assertJsonFragment(['value' => AnomalyFlag::ObservationReceiptDeviation->value]);
+});

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -37,11 +38,14 @@ final class ReverseGeocoder
         'country',
     ];
 
+    public function __construct(private readonly NominatimBudget $budget) {}
+
     /**
      * Resolve coordinates to a human-readable address.
      *
-     * Failures are cached briefly and never thrown: geocoding must not block
-     * or fail flood report submission.
+     * Failures are cached briefly and never thrown. A lookup that the shared
+     * provider budget did not admit returns null without caching, because the
+     * provider was never asked.
      */
     public function lookup(float $latitude, float $longitude): ?string
     {
@@ -53,17 +57,19 @@ final class ReverseGeocoder
             return is_string($cached['address']) ? $cached['address'] : null;
         }
 
-        $address = $this->fetch($latitude, $longitude);
+        if (! $this->budget->reserve()) {
+            return null;
+        }
+
+        $attempt = $this->fetch($latitude, $longitude);
 
         Cache::put(
             $key,
-            ['address' => $address],
-            $address === null
-                ? now()->addMinutes(self::FAILURE_TTL_MINUTES)
-                : now()->addDays(self::SUCCESS_TTL_DAYS),
+            ['address' => $attempt['address']],
+            $this->cacheTtl($attempt['address'], $attempt['retry_after']),
         );
 
-        return $address;
+        return $attempt['address'];
     }
 
     private function cacheKey(float $latitude, float $longitude): string
@@ -73,7 +79,10 @@ final class ReverseGeocoder
             .number_format($longitude, 5, '.', '');
     }
 
-    private function fetch(float $latitude, float $longitude): ?string
+    /**
+     * @return array{address: ?string, retry_after: ?int}
+     */
+    private function fetch(float $latitude, float $longitude): array
     {
         /** @var array{url: string, user_agent: string, key: string|null, timeout: int} $config */
         $config = config('services.geocoder');
@@ -102,7 +111,7 @@ final class ReverseGeocoder
                 'message' => $exception->getMessage(),
             ]);
 
-            return null;
+            return ['address' => null, 'retry_after' => null];
         }
 
         if (! $response->successful()) {
@@ -110,12 +119,44 @@ final class ReverseGeocoder
                 'status' => $response->status(),
             ]);
 
-            return null;
+            return [
+                'address' => null,
+                'retry_after' => $this->retryAfterSeconds($response),
+            ];
         }
 
         $payload = $response->json();
 
-        return is_array($payload) ? $this->formatAddress($payload) : null;
+        return [
+            'address' => is_array($payload) ? $this->formatAddress($payload) : null,
+            'retry_after' => null,
+        ];
+    }
+
+    private function cacheTtl(?string $address, ?int $retryAfter): \DateTimeInterface
+    {
+        if ($address !== null) {
+            return now()->addDays(self::SUCCESS_TTL_DAYS);
+        }
+
+        return now()->addSeconds(max(self::FAILURE_TTL_MINUTES * 60, $retryAfter ?? 0));
+    }
+
+    private function retryAfterSeconds(Response $response): ?int
+    {
+        $header = trim($response->header('Retry-After'));
+
+        if ($header === '') {
+            return null;
+        }
+
+        if (ctype_digit($header)) {
+            return (int) $header;
+        }
+
+        $timestamp = strtotime($header);
+
+        return $timestamp === false ? null : max(0, $timestamp - now()->getTimestamp());
     }
 
     /**

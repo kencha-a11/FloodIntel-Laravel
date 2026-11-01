@@ -35,6 +35,15 @@ return [
         ],
     ],
 
+    'supabase' => [
+        'url' => env('SUPABASE_URL'),
+        'anon_key' => env('SUPABASE_ANON_KEY'),
+        'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
+        'jwt_secret' => env('SUPABASE_JWT_SECRET'),
+        'realtime_token_ttl' => (int) env('SUPABASE_REALTIME_TOKEN_TTL', 600),
+        'broadcast_timeout' => (int) env('SUPABASE_BROADCAST_TIMEOUT', 5),
+    ],
+
     'geocoder' => [
         'url' => env('GEOCODER_URL', 'https://nominatim.openstreetmap.org'),
         'user_agent' => env(
@@ -43,6 +52,7 @@ return [
         ),
         'key' => env('GEOCODER_API_KEY'),
         'timeout' => (int) env('GEOCODER_TIMEOUT', 3),
+        'min_interval_ms' => (int) env('GEOCODER_MIN_INTERVAL_MS', 1000),
     ],
 
 ];

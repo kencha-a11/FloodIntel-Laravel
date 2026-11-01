@@ -9,16 +9,6 @@ use App\Models\User;
 class FloodReportPolicy
 {
     /**
-     * Determine whether the user can view any reports.
-     */
-    public function viewAny(User $user): bool
-    {
-        return $user->hasAbility(UserAbility::SubmitFloodReport)
-            || $user->hasAbility(UserAbility::ViewAllBarangays)
-            || $user->hasAbility(UserAbility::ViewOwnBarangay);
-    }
-
-    /**
      * Determine whether the user can view the report.
      */
     public function view(User $user, FloodReport $floodReport): bool
@@ -43,10 +33,45 @@ class FloodReportPolicy
     }
 
     /**
-     * Determine whether the user can reject the report.
+     * Determine whether the user can read the validated consumption feed (FR-24, FR-48).
+     */
+    public function viewValidatedFeed(User $user): bool
+    {
+        return $user->hasAbility(UserAbility::ViewValidatedReports);
+    }
+
+    /**
+     * Determine whether the user can reject the report (D-23, FR-108).
+     *
+     * The officer-only restriction is the route group's; deciding at all is
+     * the validation ability's.
      */
     public function reject(User $user, FloodReport $floodReport): bool
     {
-        return $user->hasAbility(UserAbility::ManageUsers);
+        return $user->hasAbility(UserAbility::ValidateReport);
+    }
+
+    /**
+     * Determine whether the user can validate the report (D-23).
+     */
+    public function validate(User $user, FloodReport $floodReport): bool
+    {
+        return $user->hasAbility(UserAbility::ValidateReport);
+    }
+
+    /**
+     * Determine whether the user can return the report for correction (D-23).
+     */
+    public function return(User $user, FloodReport $floodReport): bool
+    {
+        return $user->hasAbility(UserAbility::ValidateReport);
+    }
+
+    /**
+     * Determine whether the user can override a decision (D-23, FR-25).
+     */
+    public function override(User $user, FloodReport $floodReport): bool
+    {
+        return $user->hasAbility(UserAbility::OverrideValidation);
     }
 }

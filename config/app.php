@@ -68,6 +68,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Trusted Proxies
+    |--------------------------------------------------------------------------
+    |
+    | Only the addresses of the deployed edge may set X-Forwarded-*; an empty
+    | list trusts none, so the client address is the socket peer and cannot be
+    | spoofed. IP-keyed controls — the login limiter, the lockout key, and the
+    | lockout log — rely on this being narrow. Name the deployed edge's ranges
+    | in TRUSTED_PROXIES, comma-separated. A wildcard is never correct.
+    |
+    */
+
+    'trusted_proxies' => array_values(array_filter(array_map(
+        trim(...),
+        explode(',', (string) env('TRUSTED_PROXIES', '')),
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

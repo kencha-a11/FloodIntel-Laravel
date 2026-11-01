@@ -17,16 +17,16 @@ it('grants the expected abilities to each role', function (UserRole $role, array
 })->with([
     'officer' => [UserRole::MdrrmoOfficer, [
         UserAbility::ValidateReport,
+        UserAbility::OverrideValidation,
         UserAbility::GenerateProvincialReport,
-        UserAbility::MonitorDashboard,
         UserAbility::ManageUsers,
         UserAbility::ViewAllBarangays,
         UserAbility::ViewValidatedReports,
     ]],
     'staff' => [UserRole::MdrrmoStaff, [
+        UserAbility::ValidateReport,
         UserAbility::ConsolidateReports,
         UserAbility::DispatchAssets,
-        UserAbility::MonitorDashboard,
         UserAbility::ViewAllBarangays,
         UserAbility::ViewValidatedReports,
     ]],
@@ -36,7 +36,6 @@ it('grants the expected abilities to each role', function (UserRole $role, array
         UserAbility::ViewOwnBarangay,
     ]],
     'tanod' => [UserRole::BarangayTanod, [
-        UserAbility::SubmitFloodObservation,
         UserAbility::SubmitFloodReport,
         UserAbility::ViewOwnBarangay,
     ]],
@@ -56,6 +55,32 @@ it('flags the barangay scoped roles', function (UserRole $role, bool $expected) 
     [UserRole::MdrrmoStaff, false],
     [UserRole::RescueLeader, false],
 ]);
+
+it('scopes every role that files a report to a barangay', function (UserAbility $ability) {
+    $holders = array_filter(
+        UserRole::cases(),
+        fn (UserRole $role): bool => $role->hasAbility($ability),
+    );
+
+    expect($holders)->not->toBeEmpty();
+
+    foreach ($holders as $role) {
+        expect($role->requiresBarangay())->toBeTrue();
+    }
+})->with([
+    UserAbility::SubmitFloodReport,
+    UserAbility::SubmitImpactReport,
+]);
+
+it('keeps the rescue leader out of the barangay rule because it files nothing', function () {
+    $rescue = UserRole::RescueLeader;
+
+    expect($rescue->interface())->toBe(AccessInterface::FieldReporter)
+        ->and($rescue->isBarangayScoped())->toBeFalse()
+        ->and($rescue->hasAbility(UserAbility::SubmitFloodReport))->toBeFalse()
+        ->and($rescue->hasAbility(UserAbility::SubmitImpactReport))->toBeFalse()
+        ->and($rescue->hasAbility(UserAbility::ViewValidatedReports))->toBeTrue();
+});
 
 it('provides a label for every ability', function () {
     foreach (UserAbility::cases() as $ability) {

@@ -1,0 +1,188 @@
+{
+  "manifest_version": 1,
+  "dataset": "apalit-geo",
+  "release": "2026.10.31-1",
+  "generated_at": "2026-10-31T03:04:45Z",
+  "crs": "EPSG:4326",
+  "crs_source": "RFC 7946 GeoJSON; boundaries and DEM asserted from their source metadata",
+  "axis_order": "longitude,latitude",
+  "coordinate_precision": 7,
+  "generator": {
+    "command": "python tools/geo/build_geo.py --out client/public/geo",
+    "inputs": [
+      {
+        "path": "tools/Files/Apalit_Copernicus_DEM_Masked.tif",
+        "sha256": "cd7cc473bc77c2fcbc98811385135bd17ee83b809efc67c3a07b597fd6b8185a"
+      },
+      {
+        "path": "tools/Files/apalit_barangays.json",
+        "sha256": "e878791da27ec0676ffd83d6756e42f517d2866d0ce87b9c42fba3c80bbe5122"
+      },
+      {
+        "path": "tools/apalit-water.geojson",
+        "sha256": "6c5a5ce5dcf886717be2522b0c60e006d6d2273c59e5dbf2b3d3d41fcf9d88ec"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "apalit-barangays",
+      "path": "/geo/apalit-barangays.geojson",
+      "format": "geojson",
+      "sha256": "3f092cfb1f332d0cb3c7ec94c644caaebaf19b90f9a02d05aaadde45ba1fd1b8",
+      "bytes": 40816,
+      "feature_count": 12,
+      "source": "PSA/NAMRIA ADM4 boundaries (2023-11-06 extract); license recorded from the HDX COD-AB dataset metadata",
+      "vintage": "2023-11-06",
+      "license": {
+        "id": "CC-BY-IGO",
+        "name": "Creative Commons Attribution for Intergovernmental Organisations (CC BY-IGO)",
+        "url": "https://creativecommons.org/licenses/by/3.0/igo/"
+      },
+      "attribution": "© Philippine Statistics Authority (PSA) and National Mapping and Resource Information Authority (NAMRIA), Philippines COD-AB, CC BY-IGO",
+      "derived": false,
+      "notes": "Local extract is the 2023-11-06 ADM4 file; the license is taken from the publisher's COD-AB dataset metadata."
+    },
+    {
+      "name": "apalit-water",
+      "path": "/geo/apalit-water.geojson",
+      "format": "geojson",
+      "sha256": "ceb04508eb1f5194db00235265edf67292e33317219528a98c60f5d7b6d22af4",
+      "bytes": 70996,
+      "feature_count": 11,
+      "source": "OpenStreetMap water polygons (cached Overpass extraction)",
+      "vintage": "unknown",
+      "license": {
+        "id": "ODbL-1.0",
+        "name": "Open Database License 1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "attribution": "© OpenStreetMap contributors",
+      "derived": false,
+      "notes": "Clipped per barangay; each feature carries brgy_code. Extraction date is not recorded in the cache and is reported as unknown."
+    },
+    {
+      "name": "apalit-water-bin",
+      "path": "/geo/apalit-water.bin",
+      "format": "binary",
+      "sha256": "a49829c40db38ccb7922d32e131620166f35730fff0206943c644ec8c44938bf",
+      "bytes": 114490,
+      "feature_count": null,
+      "source": "OpenStreetMap water polygons rasterized to the DEM grid",
+      "vintage": "unknown",
+      "license": {
+        "id": "ODbL-1.0",
+        "name": "Open Database License 1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "attribution": "© OpenStreetMap contributors",
+      "derived": true,
+      "notes": "Same header as apalit-dem.bin; 1 = water cell."
+    },
+    {
+      "name": "apalit-roads",
+      "path": "/geo/apalit-roads.geojson",
+      "format": "geojson",
+      "sha256": "543d816b932295ed0a7c65a8054e867355dd857b975200c7e4ab3b76f2fbd0cc",
+      "bytes": 358488,
+      "feature_count": 1605,
+      "source": "OpenStreetMap highways via Overpass, clipped to the municipal union",
+      "vintage": "2026-10-31",
+      "license": {
+        "id": "ODbL-1.0",
+        "name": "Open Database License 1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "attribution": "© OpenStreetMap contributors",
+      "derived": false,
+      "notes": "Simplified with Mapshaper (30%, keep-shapes)."
+    },
+    {
+      "name": "apalit-landmarks",
+      "path": "/geo/apalit-landmarks.geojson",
+      "format": "geojson",
+      "sha256": "745102951a68d1b2f1b59541e00935d460b21b8957a06dd39db3bdb850dda852",
+      "bytes": 22327,
+      "feature_count": 151,
+      "source": "OpenStreetMap amenity/place/tourism/historic/government/emergency nodes",
+      "vintage": "2026-10-31",
+      "license": {
+        "id": "ODbL-1.0",
+        "name": "Open Database License 1.0",
+        "url": "https://opendatacommons.org/licenses/odbl/1-0/"
+      },
+      "attribution": "© OpenStreetMap contributors",
+      "derived": false,
+      "notes": "Point features; no line simplification applies."
+    },
+    {
+      "name": "apalit-elevation",
+      "path": "/geo/apalit-elevation.geojson",
+      "format": "geojson",
+      "sha256": "ef816c194965f80acb2d5a210d09f1ad3cd7b59a7620ff6a293f7cac487b80ec",
+      "bytes": 1032576,
+      "feature_count": 80,
+      "source": "Copernicus DEM GLO-30 (COP-DEM-GLO-30-F), masked municipal extract, water-masked and clipped per barangay",
+      "vintage": "unknown",
+      "license": {
+        "id": "COPDEM-30",
+        "name": "Licence for the use of the Copernicus WorldDEM-30 (COP-DEM-GLO-30-F)",
+        "url": "https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM"
+      },
+      "attribution": "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved",
+      "derived": true,
+      "notes": "Every band feature is Derived; no color property. DOI https://doi.org/10.5270/ESA-c5d3d65"
+    },
+    {
+      "name": "apalit-dem",
+      "path": "/geo/apalit-dem.bin",
+      "format": "binary",
+      "sha256": "0829f09ebff6bad267e898aae6900ed1edbb7f984a93e829546bcc612a06e7e5",
+      "bytes": 228940,
+      "feature_count": null,
+      "source": "Copernicus DEM GLO-30 (COP-DEM-GLO-30-F), masked municipal extract",
+      "vintage": "unknown",
+      "license": {
+        "id": "COPDEM-30",
+        "name": "Licence for the use of the Copernicus WorldDEM-30 (COP-DEM-GLO-30-F)",
+        "url": "https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM"
+      },
+      "attribution": "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved",
+      "derived": true,
+      "notes": "int16 centimetres, -32768 nodata; header and lookup formula in the module 13 plan §11.5."
+    },
+    {
+      "name": "apalit-dem-derived",
+      "path": "/geo/apalit-dem-derived.bin",
+      "format": "binary",
+      "sha256": "b6d41ae79d70d769cadd9420668aff5e8defde953509d5e10216700988bdd671",
+      "bytes": 114490,
+      "feature_count": null,
+      "source": "Interpolated cells derived from apalit-dem.bin",
+      "vintage": "unknown",
+      "license": {
+        "id": "COPDEM-30",
+        "name": "Licence for the use of the Copernicus WorldDEM-30 (COP-DEM-GLO-30-F)",
+        "url": "https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM"
+      },
+      "attribution": "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved",
+      "derived": true,
+      "notes": "1 = cell elevation was interpolated; the sum equals interior_fill.count."
+    }
+  ],
+  "blocked": [],
+  "interior_fill": {
+    "count": 0,
+    "artifact": "apalit-dem-derived"
+  },
+  "warnings": [
+    {
+      "code": "dem-vintage-unknown",
+      "message": "The supplied masked DEM does not record its vintage; reported as unknown."
+    },
+    {
+      "code": "water-extraction-date-unknown",
+      "message": "The cached water extraction has no recorded date; reported as unknown."
+    }
+  ]
+}

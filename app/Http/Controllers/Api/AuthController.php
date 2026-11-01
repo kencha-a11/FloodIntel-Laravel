@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Support\DatabaseIdentity;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -19,10 +21,14 @@ class AuthController extends Controller
     {
         $request->authenticate();
 
-        $user = $request->user()->load('barangay');
+        $user = $request->user();
+
+        // The response embeds the policy-protected barangay, so this one read
+        // runs under the identity the request middleware has not set yet.
+        DatabaseIdentity::runAs($user->getKey(), fn () => $user->load('barangay'));
 
         return response()->json([
-            'user' => $user,
+            'user' => new UserResource($user),
             'token' => $user->createToken('auth_token')->plainTextToken,
         ]);
     }
@@ -32,7 +38,7 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        return response()->json($request->user()->load('barangay'));
+        return response()->json(new UserResource($request->user()->load('barangay')));
     }
 
     /**

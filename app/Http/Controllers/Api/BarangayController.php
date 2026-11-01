@@ -10,12 +10,15 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class BarangayController extends Controller
 {
     /**
-     * List all barangays.
+     * List the active barangays.
+     *
+     * Superseded rows stay in the table for their reports but are not offered
+     * for selection.
      */
     public function index(): AnonymousResourceCollection
     {
         return BarangayResource::collection(
-            Barangay::query()->orderBy('name')->get(),
+            Barangay::query()->where('is_active', true)->orderBy('name')->get(),
         );
     }
 }

@@ -18,3 +18,16 @@ it('returns barangays ordered by name', function () {
         ->assertJsonPath('data.0.name', 'Alpha')
         ->assertJsonStructure(['data' => [['id', 'name', 'code', 'is_active']]]);
 });
+
+it('does not list superseded barangays', function () {
+    $officer = User::factory()->officer()->create();
+    Barangay::factory()->create(['name' => 'Current']);
+    Barangay::factory()->inactive()->create(['name' => 'Superseded']);
+
+    $response = $this->withToken($officer->createToken('t')->plainTextToken)
+        ->getJson('/api/barangays');
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.name', 'Current');
+});

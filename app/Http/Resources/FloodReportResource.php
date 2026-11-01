@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\AnomalyFlag;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -44,6 +45,17 @@ class FloodReportResource extends JsonResource
             'notes' => $this->notes,
             'reported_at' => $this->reported_at,
             'status' => $this->status->value,
+            'status_label' => $this->status->label(),
+            'status_changes' => FloodReportStatusChangeResource::collection(
+                $this->whenLoaded('statusChanges'),
+            ),
+            'anomaly_flags' => ($this->anomaly_flags ?? collect())
+                ->map(fn (AnomalyFlag $flag): array => [
+                    'value' => $flag->value,
+                    'label' => $flag->label(),
+                ])
+                ->values()
+                ->all(),
             'rejection_reason' => $this->rejection_reason,
             'rejected_at' => $this->rejected_at,
             'created_at' => $this->created_at,

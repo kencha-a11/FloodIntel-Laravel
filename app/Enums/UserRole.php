@@ -39,16 +39,16 @@ enum UserRole: string
         return match ($this) {
             self::MdrrmoOfficer => [
                 UserAbility::ValidateReport,
+                UserAbility::OverrideValidation,
                 UserAbility::GenerateProvincialReport,
-                UserAbility::MonitorDashboard,
                 UserAbility::ManageUsers,
                 UserAbility::ViewAllBarangays,
                 UserAbility::ViewValidatedReports,
             ],
             self::MdrrmoStaff => [
+                UserAbility::ValidateReport,
                 UserAbility::ConsolidateReports,
                 UserAbility::DispatchAssets,
-                UserAbility::MonitorDashboard,
                 UserAbility::ViewAllBarangays,
                 UserAbility::ViewValidatedReports,
             ],
@@ -58,7 +58,6 @@ enum UserRole: string
                 UserAbility::ViewOwnBarangay,
             ],
             self::BarangayTanod => [
-                UserAbility::SubmitFloodObservation,
                 UserAbility::SubmitFloodReport,
                 UserAbility::ViewOwnBarangay,
             ],

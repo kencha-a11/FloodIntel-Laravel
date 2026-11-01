@@ -5,12 +5,11 @@ namespace App\Enums;
 enum UserAbility: string
 {
     case ValidateReport = 'validate-report';
+    case OverrideValidation = 'override-validation';
     case ConsolidateReports = 'consolidate-reports';
     case DispatchAssets = 'dispatch-assets';
     case GenerateProvincialReport = 'generate-provincial-report';
-    case MonitorDashboard = 'monitor-dashboard';
     case SubmitImpactReport = 'submit-impact-report';
-    case SubmitFloodObservation = 'submit-flood-observation';
     case SubmitFloodReport = 'submit-flood-report';
     case ViewValidatedReports = 'view-validated-reports';
     case UpdateRescueStatus = 'update-rescue-status';
@@ -22,12 +21,11 @@ enum UserAbility: string
     {
         return match ($this) {
             self::ValidateReport => 'Validate reports',
+            self::OverrideValidation => 'Override validation decisions',
             self::ConsolidateReports => 'Consolidate reports',
             self::DispatchAssets => 'Dispatch assets',
             self::GenerateProvincialReport => 'Generate provincial reports',
-            self::MonitorDashboard => 'Monitor dashboard',
             self::SubmitImpactReport => 'Submit barangay impact reports',
-            self::SubmitFloodObservation => 'Submit flood-level observations',
             self::SubmitFloodReport => 'Submit flood reports',
             self::ViewValidatedReports => 'View validated reports',
             self::UpdateRescueStatus => 'Update rescue status',

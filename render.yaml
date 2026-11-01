@@ -1,12 +1,24 @@
 # Render Blueprint for the FloodIntel Laravel API (Docker runtime).
 #
 # Supabase database setup (one-time, after the first deploy is created):
-#   1. In Supabase: Connect -> Postgres -> Session mode, copy the connection string.
-#   2. In Render: Environment -> add DB_URL with that string, then mark it as a Secret.
-#      Example format:
-#        postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require
+#   1. In Supabase: create the non-owner application role with a generated password:
+#        create role app_runtime login password '<generated>'
+#          nosuperuser nocreatedb nocreaterole nobypassrls;
+#      The migration set grants it the tables and sequences it needs (D-61). If the
+#      role is missing, the migration creates it as NOLOGIN and the app cannot
+#      connect until a password is set.
+#   2. In Supabase: Connect -> Postgres -> Session mode, copy the app_runtime
+#      connection string. In Render: set DB_URL with that string and mark it a Secret.
+#      The application always connects as app_runtime.
+#   3. In Render: set DB_OWNER_URL with the postgres owner connection string and mark
+#      it a Secret. Only docker/entrypoint.sh reads it, to run migrations; the
+#      running application never uses it. Owner connections bypass RLS (D-08, D-61).
 #   Session mode (port 6543) is required: the direct connection (5432) needs IPv6,
 #   which Render containers do not have.
+#   4. The migration set also creates app_maintenance (NOLOGIN, no credential) and
+#      enables RLS on flood_reports, flood_impact_reports, flood_events, and
+#      barangays (D-97, D-98). app_runtime is a member of app_maintenance only so
+#      the address backfill can SET LOCAL ROLE; it is never the application's role.
 #
 # If you rename the service, update APP_URL and SANCTUM_STATEFUL_DOMAINS to match.
 
@@ -36,6 +48,8 @@ services:
         value: pgsql
       - key: DB_URL
         sync: false
+      - key: DB_OWNER_URL
+        sync: false
       - key: DB_SSLMODE
         value: require
       - key: SESSION_DRIVER
@@ -62,5 +76,17 @@ services:
         value: aljonkenfernandez36@gmail.com
       - key: MAIL_FROM_NAME
         value: FloodIntel
+      # Supabase Realtime (DB-06, D-63, D-65). The URL and anon key are public
+      # project settings; the service-role key and JWT secret are secrets with
+      # an owner in OPS-09. When any of the four is missing the API reports
+      # realtime as disabled and the client keeps polling.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
       - key: GEOCODER_USER_AGENT
         value: FloodIntel/1.0 (https://floodintel-drrms.netlify.app)

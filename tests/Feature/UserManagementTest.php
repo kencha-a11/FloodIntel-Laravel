@@ -21,7 +21,7 @@ it('lets the officer create a user and assign a barangay scoped role', function 
             'last_name' => 'Captain',
             'email' => 'new-captain@example.com',
             'contact_number' => '+15551110001',
-            'password' => 'password',
+            'password' => 'Passw0rd1234',
             'role' => UserRole::BarangayCaptain->value,
             'barangay_id' => $barangay->id,
         ]);
@@ -50,7 +50,7 @@ it('creates a command center user without requiring a barangay', function () {
             'last_name' => 'Staff',
             'email' => 'new-staff@example.com',
             'contact_number' => '+15551110002',
-            'password' => 'password',
+            'password' => 'Passw0rd1234',
             'role' => UserRole::MdrrmoStaff->value,
         ])
         ->assertCreated()
@@ -67,7 +67,7 @@ it('requires a barangay for a barangay scoped role', function () {
             'last_name' => 'Tanod',
             'email' => 'new-tanod@example.com',
             'contact_number' => '+15551110003',
-            'password' => 'password',
+            'password' => 'Passw0rd1234',
             'role' => UserRole::BarangayTanod->value,
         ])
         ->assertUnprocessable()
@@ -83,7 +83,7 @@ it('rejects an unknown role when creating a user', function () {
             'last_name' => 'User',
             'email' => 'new-user@example.com',
             'contact_number' => '+15551110004',
-            'password' => 'password',
+            'password' => 'Passw0rd1234',
             'role' => 'super_admin',
         ])
         ->assertUnprocessable()

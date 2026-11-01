@@ -1,0 +1,112 @@
+{
+  "release": "2026.10.31-1",
+  "crs": "EPSG:4326",
+  "precision": 7,
+  "generated_by": "tools/geo/build_geo.py",
+  "points": [
+    {
+      "name": "interior-PH0305402001",
+      "lat": 14.9606074,
+      "lon": 120.8282337,
+      "status": "inside",
+      "code": "PH0305402001"
+    },
+    {
+      "name": "interior-PH0305402003",
+      "lat": 14.9793295,
+      "lon": 120.8536699,
+      "status": "inside",
+      "code": "PH0305402003"
+    },
+    {
+      "name": "interior-PH0305402004",
+      "lat": 14.9710409,
+      "lon": 120.7951673,
+      "status": "inside",
+      "code": "PH0305402004"
+    },
+    {
+      "name": "interior-PH0305402005",
+      "lat": 14.9315509,
+      "lon": 120.7706808,
+      "status": "inside",
+      "code": "PH0305402005"
+    },
+    {
+      "name": "interior-PH0305402007",
+      "lat": 14.9363997,
+      "lon": 120.7396758,
+      "status": "inside",
+      "code": "PH0305402007"
+    },
+    {
+      "name": "interior-PH0305402009",
+      "lat": 14.9698385,
+      "lon": 120.7458531,
+      "status": "inside",
+      "code": "PH0305402009"
+    },
+    {
+      "name": "interior-PH0305402010",
+      "lat": 14.9644748,
+      "lon": 120.7557208,
+      "status": "inside",
+      "code": "PH0305402010"
+    },
+    {
+      "name": "interior-PH0305402011",
+      "lat": 14.9582659,
+      "lon": 120.7684343,
+      "status": "inside",
+      "code": "PH0305402011"
+    },
+    {
+      "name": "interior-PH0305402012",
+      "lat": 14.9504107,
+      "lon": 120.7503932,
+      "status": "inside",
+      "code": "PH0305402012"
+    },
+    {
+      "name": "interior-PH0305402013",
+      "lat": 14.9708031,
+      "lon": 120.7731055,
+      "status": "inside",
+      "code": "PH0305402013"
+    },
+    {
+      "name": "interior-PH0305402014",
+      "lat": 14.9381441,
+      "lon": 120.7566921,
+      "status": "inside",
+      "code": "PH0305402014"
+    },
+    {
+      "name": "interior-PH0305402015",
+      "lat": 14.9470903,
+      "lon": 120.7789238,
+      "status": "inside",
+      "code": "PH0305402015"
+    },
+    {
+      "name": "outside-extent",
+      "lat": 14.9948583,
+      "lon": 120.883177,
+      "status": "outside"
+    },
+    {
+      "name": "gap-inside-extent",
+      "lat": 14.9240572,
+      "lon": 120.727059,
+      "status": "unknown",
+      "reason": "coverage-gap"
+    },
+    {
+      "name": "shared-edge",
+      "lat": 14.9738401,
+      "lon": 120.8522208,
+      "status": "inside",
+      "code": "PH0305402001"
+    }
+  ]
+}

@@ -85,6 +85,58 @@ it('returns the authenticated user with role and abilities when a valid token is
         ->assertJsonStructure(['abilities']);
 });
 
+it('returns one user payload shape from both auth endpoints', function () {
+    $user = User::factory()->captain()->create();
+
+    // Login first: the auth:sanctum middleware calls Auth::shouldUse('sanctum'),
+    // which sticks on the shared app instance and breaks Auth::attempt() after it.
+    $login = $this->postJson('/api/login', [
+        'login' => $user->email,
+        'password' => 'password',
+    ])->json('user');
+
+    $me = $this->withToken($user->createToken('api_token')->plainTextToken)
+        ->getJson('/api/user')
+        ->json();
+
+    expect(array_keys($me))->toBe(array_keys($login))
+        ->and(array_keys($me))->toBe([
+            'id',
+            'first_name',
+            'last_name',
+            'full_name',
+            'email',
+            'contact_number',
+            'role',
+            'role_label',
+            'interface',
+            'abilities',
+            'barangay',
+            'email_verified_at',
+            'created_at',
+        ]);
+});
+
+it('does not leak raw model columns from the auth endpoints', function () {
+    $user = User::factory()->captain()->create();
+
+    $login = $this->postJson('/api/login', [
+        'login' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $me = $this->withToken($user->createToken('api_token')->plainTextToken)
+        ->getJson('/api/user');
+
+    foreach (['password', 'remember_token', 'updated_at', 'barangay_id'] as $key) {
+        $me->assertJsonMissingPath($key);
+        $login->assertJsonMissingPath("user.{$key}");
+        $login->assertJsonMissingPath("user.barangay.{$key}");
+    }
+
+    expect(array_keys($me->json('barangay')))->toBe(['id', 'name', 'code', 'is_active']);
+});
+
 it('returns 401 when accessing the user endpoint without a token', function () {
     $response = $this->getJson('/api/user');
 

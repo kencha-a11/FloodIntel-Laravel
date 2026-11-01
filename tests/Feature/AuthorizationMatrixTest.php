@@ -65,6 +65,7 @@ it('serves the shared authenticated surface to every role', function (UserRole $
     foreach ([
         '/api/flood-reports',
         '/api/flood-impact-reports',
+        '/api/access-tags',
         '/api/tokens',
     ] as $uri) {
         $this->withToken($token)->getJson($uri)->assertOk();
@@ -528,5 +529,8 @@ it('answers guests with a json 401 on every protected endpoint', function (strin
     ['POST', '/api/users'],
     ['PATCH', '/api/users/1'],
     ['DELETE', '/api/users/1'],
+    ['GET', '/api/access-tags'],
+    ['POST', '/api/access-tags'],
+    ['GET', '/api/access-tags/1'],
     ['GET', '/api/roles'],
 ]);

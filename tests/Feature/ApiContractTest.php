@@ -195,6 +195,24 @@ it('publishes an OpenAPI 3.1 document', function () {
     }
 });
 
+it('keeps the surface unversioned', function () {
+    $versioned = '/^api\/v\d+(\/|$)/';
+
+    foreach (apiContractRoutes() as $entry) {
+        expect($entry['route']->uri())->not->toMatch(
+            $versioned,
+            "routes/api.php declares {$entry['route']->uri()}; a version segment is a decision, not an edit (API-05, D-123).",
+        );
+    }
+
+    foreach (array_keys(apiContract()['paths']) as $path) {
+        expect(ltrim($path, '/'))->not->toMatch(
+            $versioned,
+            "The contract lists {$path}; the published surface is unversioned (API-05, D-123).",
+        );
+    }
+});
+
 it('lists every API route exactly once, with the same parameter names', function () {
     $operations = apiContractOperationMap();
     $keys = array_map(

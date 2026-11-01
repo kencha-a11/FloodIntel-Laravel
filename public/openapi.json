@@ -25,6 +25,10 @@
       "description": "Barangay impact reports filed against a flood event."
     },
     {
+      "name": "Access tags",
+      "description": "Places response teams cannot pass, or can pass only on foot (TR-36)."
+    },
+    {
       "name": "Reference",
       "description": "Barangays, roles, and reverse geocoding."
     },
@@ -1161,6 +1165,202 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/access-tags": {
+      "get": {
+        "tags": [
+          "Access tags"
+        ],
+        "summary": "List the access tags visible to the caller",
+        "description": "Reads are scoped exactly as the report log is (FR-119): the command center reads every barangay, a barangay-scoped account reads its own, and any other account reads only the tags it recorded. `barangay_id` is applied only when the caller may read beyond its own barangay (FR-120). The filter range is on the observation instant, and a retired tag is still readable but reports `is_active` false.",
+        "operationId": "listAccessTags",
+        "x-controller": "App\\Http\\Controllers\\Api\\AccessTagController@index",
+        "x-request": "App\\Http\\Requests\\Tag\\AccessTagFiltersRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "name": "barangay_id",
+            "in": "query",
+            "required": false,
+            "description": "Applied only when the caller may read beyond its own barangay.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AccessTagType"
+            }
+          },
+          {
+            "name": "is_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Lower bound on the observation instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "Upper bound on the observation instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of visible tags, newest observed first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTagPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Access tags"
+        ],
+        "summary": "Record an access tag",
+        "description": "Only the two field roles hold `record-access-tag` (FR-118, D-128). The barangay and the recording account come from the authenticated request and are never read from the payload; an account without a barangay is refused `422` naming `barangay_id` before any row exists (FR-115). `observed_at` is the capture instant and is required, never replaced by the receipt time (FR-114). A note is required when the type is `other` (D-127).",
+        "operationId": "storeAccessTag",
+        "x-controller": "App\\Http\\Controllers\\Api\\AccessTagController@store",
+        "x-request": "App\\Http\\Requests\\Tag\\StoreAccessTagRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessTagInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The tag was recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTag"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/access-tags/{accessTag}": {
+      "get": {
+        "tags": [
+          "Access tags"
+        ],
+        "summary": "Read one access tag",
+        "description": "The view policy applies the same three branches as the list: every barangay, the caller's own, or only what the caller recorded (FR-119).",
+        "operationId": "getAccessTag",
+        "x-controller": "App\\Http\\Controllers\\Api\\AccessTagController@show",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "accessTag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTag"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -3321,6 +3521,197 @@
             "items": {
               "$ref": "#/components/schemas/FloodEvent"
             }
+          }
+        }
+      },
+      "AccessTagType": {
+        "type": "string",
+        "description": "The closed taxonomy (D-127). A place may carry more than one tag.",
+        "enum": [
+          "narrow_alley",
+          "no_vehicle_access",
+          "stairs_or_steep",
+          "structurally_blocked",
+          "other"
+        ]
+      },
+      "AccessTag": {
+        "type": "object",
+        "description": "A constraint on a place (D-124, D-125). It carries no resident, household, medical, or disability field.",
+        "required": [
+          "id",
+          "barangay",
+          "recorded_by",
+          "type",
+          "type_label",
+          "landmark",
+          "note",
+          "latitude",
+          "longitude",
+          "gps_accuracy",
+          "address",
+          "observed_at",
+          "is_active",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "barangay": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "recorded_by": {
+            "type": "object",
+            "required": [
+              "id",
+              "first_name",
+              "last_name",
+              "role"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "first_name": {
+                "type": "string"
+              },
+              "last_name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            }
+          },
+          "type": {
+            "$ref": "#/components/schemas/AccessTagType"
+          },
+          "type_label": {
+            "type": "string",
+            "description": "The server's display label for the type; the client never renders the raw value."
+          },
+          "landmark": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "gps_accuracy": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The capture instant, never the receipt time (FR-114)."
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "False once retired; a retired tag stays readable (FR-121)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AccessTagInput": {
+        "type": "object",
+        "required": [
+          "type",
+          "latitude",
+          "longitude",
+          "observed_at"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/AccessTagType"
+          },
+          "landmark": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Required when `type` is `other`."
+          },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "gps_accuracy": {
+            "type": "number",
+            "minimum": 0
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AccessTagPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessTag"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
           }
         }
       },

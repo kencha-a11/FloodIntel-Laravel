@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AccessTagController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarangayController;
 use App\Http\Controllers\Api\FloodEventController;
@@ -57,6 +58,13 @@ Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'throttle:auth-sta
     Route::get('/flood-impact-reports', [FloodImpactReportController::class, 'index']);
     Route::post('/flood-impact-reports', [FloodImpactReportController::class, 'store'])
         ->middleware('throttle:10,1');
+
+    // Reads are scoped in the query (FR-119); filing is the field roles'
+    // ability, enforced by AccessTagPolicy@create (FR-118).
+    Route::get('/access-tags', [AccessTagController::class, 'index']);
+    Route::post('/access-tags', [AccessTagController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::get('/access-tags/{accessTag}', [AccessTagController::class, 'show']);
 
     Route::get('/geocode/reverse', [GeocodeController::class, 'reverse'])
         ->middleware('throttle:30,1');

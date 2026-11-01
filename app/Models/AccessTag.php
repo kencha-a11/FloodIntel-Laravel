@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Enums\AccessTagType;
 use App\Enums\UserAbility;
+use App\Policies\AccessTagPolicy;
 use Database\Factories\AccessTagFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'latitude', 'longitude', 'gps_accuracy', 'address',
     'observed_at', 'is_active',
 ])]
+#[UsePolicy(AccessTagPolicy::class)]
 class AccessTag extends Model
 {
     /** @use HasFactory<AccessTagFactory> */

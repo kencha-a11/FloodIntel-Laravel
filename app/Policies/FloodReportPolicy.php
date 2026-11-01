@@ -41,6 +41,17 @@ class FloodReportPolicy
     }
 
     /**
+     * Determine whether the user can export the report log (FR-29).
+     *
+     * The export is the command center's cross-barangay review surface, so it
+     * follows the same ability as the queue's cross-barangay filter.
+     */
+    public function export(User $user): bool
+    {
+        return $user->hasAbility(UserAbility::ViewAllBarangays);
+    }
+
+    /**
      * Determine whether the user can reject the report (D-23, FR-108).
      *
      * The officer-only restriction is the route group's; deciding at all is

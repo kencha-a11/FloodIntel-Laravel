@@ -45,6 +45,8 @@ Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'throttle:auth-sta
         ->middleware(['role:mdrrmo_officer,mdrrmo_staff', 'throttle:30,1']);
     Route::get('/flood-reports/validated-feed', [FloodReportController::class, 'validatedFeed'])
         ->middleware(['role:mdrrmo_officer,mdrrmo_staff,rescue_leader', 'throttle:60,1']);
+    Route::get('/flood-reports/export', [FloodReportController::class, 'export'])
+        ->middleware(['role:mdrrmo_officer,mdrrmo_staff', 'throttle:10,1']);
     Route::post('/flood-reports', [FloodReportController::class, 'store'])
         ->middleware('throttle:10,1');
     Route::get('/flood-reports/{floodReport}', [FloodReportController::class, 'show']);

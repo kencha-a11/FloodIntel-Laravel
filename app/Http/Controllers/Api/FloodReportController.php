@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Enums\FloodReportStatus;
 use App\Enums\UserAbility;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Report\ExportFloodReportsRequest;
 use App\Http\Requests\Report\OverrideFloodReportStatusRequest;
 use App\Http\Requests\Report\RejectFloodReportRequest;
+use App\Http\Requests\Report\ReportLogFiltersRequest;
 use App\Http\Requests\Report\ReturnFloodReportRequest;
 use App\Http\Requests\Report\StoreFloodReportRequest;
 use App\Http\Requests\Report\ValidatedFeedRequest;
@@ -23,37 +25,76 @@ use App\Services\ReportAnomalyDetector;
 use App\Support\ConsolidationWindow;
 use App\Support\ImageSanitizer;
 use App\Support\InvalidUploadedImage;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FloodReportController extends Controller
 {
     /**
+     * The report log's columns. The photo is a URL, never its bytes: the CSV
+     * is a review artifact, not a copy of the evidence store.
+     *
+     * @var array<int, string>
+     */
+    private const CSV_COLUMNS = [
+        'report_id', 'barangay', 'flood_type', 'status', 'status_label',
+        'alert_level', 'alert_level_label', 'reporter_name', 'reporter_role',
+        'observed_at', 'received_at', 'latency_seconds', 'latitude', 'longitude',
+        'address', 'depth_cm', 'notes', 'photo_url',
+    ];
+
+    /**
      * List flood reports visible to the authenticated user.
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ReportLogFiltersRequest $request): AnonymousResourceCollection
     {
-        $user = $request->user();
-
-        $reports = FloodReport::query()
-            ->visibleTo($user)
+        $reports = $this->filteredReports($request)
             ->with(['user', 'barangay'])
-            ->when($request->filled('flood_level'), fn ($query) => $query->where('flood_level', $request->string('flood_level')))
-            ->when($request->filled('alert_level'), fn ($query) => $query->where('alert_level', $request->string('alert_level')))
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
-            ->when($request->filled('barangay_id') && $user->hasAbility(UserAbility::ViewAllBarangays), fn ($query) => $query->where('barangay_id', $request->integer('barangay_id')))
-            ->when($request->filled('from'), fn ($query) => $query->where('reported_at', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($query) => $query->where('reported_at', '<=', $request->date('to')))
-            ->latest('reported_at')
             ->paginate($request->integer('per_page', 15));
 
         return FloodReportResource::collection($reports);
+    }
+
+    /**
+     * Stream the filtered report log as CSV (FR-29).
+     *
+     * Rows are read in chunks inside the streamed response, so the export's
+     * memory use is bounded by the chunk size rather than the log size.
+     */
+    public function export(ExportFloodReportsRequest $request): StreamedResponse
+    {
+        $reports = $this->filteredReports($request)->with(['user', 'barangay']);
+        $count = (clone $reports)->count();
+
+        return response()->streamDownload(function () use ($reports): void {
+            $handle = fopen('php://output', 'w');
+
+            if ($handle === false) {
+                return;
+            }
+
+            fputcsv($handle, self::CSV_COLUMNS, ',', '"', '');
+
+            $reports->chunk(500, function (Collection $chunk) use ($handle): void {
+                foreach ($chunk as $report) {
+                    fputcsv($handle, $this->csvRow($report), ',', '"', '');
+                }
+            });
+
+            fclose($handle);
+        }, 'flood-report-log-'.now()->format('Ymd-His').'.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'X-Report-Count' => (string) $count,
+            'Cache-Control' => 'no-store',
+        ]);
     }
 
     /**
@@ -292,6 +333,96 @@ class FloodReportController extends Controller
         $broadcast->statusChanged($floodReport);
 
         return $this->detail($floodReport);
+    }
+
+    /**
+     * The queue and the export share this query: one definition of "which rows
+     * match", so the two surfaces cannot disagree (FR-29).
+     *
+     * The `id` tiebreaker makes `chunk()` deterministic when reports share an
+     * observation instant.
+     *
+     * @return Builder<FloodReport>
+     */
+    private function filteredReports(ReportLogFiltersRequest $request): Builder
+    {
+        $user = $request->user();
+
+        return FloodReport::query()
+            ->visibleTo($user)
+            ->when($request->filled('flood_level'), fn (Builder $query) => $query->where('flood_level', $request->string('flood_level')))
+            ->when($request->filled('alert_level'), fn (Builder $query) => $query->where('alert_level', $request->string('alert_level')))
+            ->when($request->filled('status'), fn (Builder $query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('barangay_id') && $user->hasAbility(UserAbility::ViewAllBarangays), fn (Builder $query) => $query->where('barangay_id', $request->integer('barangay_id')))
+            ->when($request->filled('q'), fn (Builder $query) => $this->applySearch($query, $request->string('q')->trim()->toString()))
+            ->when($request->filled('from'), fn (Builder $query) => $query->where('reported_at', '>=', $request->date('from')))
+            ->when($request->filled('to'), fn (Builder $query) => $query->where('reported_at', '<=', $request->date('to')))
+            ->latest('reported_at')
+            ->orderByDesc('id');
+    }
+
+    /**
+     * Match the free-text term against notes, landmark, address, and the
+     * reporter's full name (FR-29).
+     *
+     * `LOWER` on both sides keeps the match case-insensitive on SQLite and
+     * Postgres, and the explicit `ESCAPE` clause makes a typed `%` or `_` a
+     * literal instead of a wildcard.
+     *
+     * @param  Builder<FloodReport>  $query
+     * @return Builder<FloodReport>
+     */
+    private function applySearch(Builder $query, string $term): Builder
+    {
+        if ($term === '') {
+            return $query;
+        }
+
+        $pattern = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], mb_strtolower($term)).'%';
+
+        return $query->where(function (Builder $query) use ($pattern): void {
+            $query->whereRaw("LOWER(notes) LIKE ? ESCAPE '\\'", [$pattern])
+                ->orWhereRaw("LOWER(landmark) LIKE ? ESCAPE '\\'", [$pattern])
+                ->orWhereRaw("LOWER(address) LIKE ? ESCAPE '\\'", [$pattern])
+                ->orWhereHas('user', fn (Builder $user) => $user->whereRaw(
+                    "LOWER(first_name || ' ' || last_name) LIKE ? ESCAPE '\\'",
+                    [$pattern],
+                ));
+        });
+    }
+
+    /**
+     * One CSV row. Missing values are empty cells, never the string "null".
+     *
+     * @return array<int, int|string>
+     */
+    private function csvRow(FloodReport $report): array
+    {
+        $observed = $report->reported_at;
+        $received = $report->created_at;
+
+        return [
+            $report->id,
+            $report->barangay->name,
+            $report->flood_type?->label() ?? '',
+            $report->status->value,
+            $report->status->label(),
+            $report->alert_level?->value ?? '',
+            $report->alert_level?->label() ?? '',
+            trim($report->user->first_name.' '.$report->user->last_name),
+            $report->user->role->label(),
+            $observed?->toIso8601String() ?? '',
+            $received?->toIso8601String() ?? '',
+            $observed === null || $received === null
+                ? ''
+                : $received->getTimestamp() - $observed->getTimestamp(),
+            $report->latitude,
+            $report->longitude,
+            $report->address ?? '',
+            $report->depth_cm ?? '',
+            $report->notes ?? '',
+            $report->photo_url,
+        ];
     }
 
     private function detail(FloodReport $floodReport): FloodReportResource

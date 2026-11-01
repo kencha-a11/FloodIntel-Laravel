@@ -14,6 +14,11 @@ fi
 
 php artisan migrate --force --database=pgsql_owner
 
+# Seeding must follow the migration (the spatial column the geometry sync writes
+# to is created there) and is idempotent, so every boot reconciles the 12
+# authoritative barangays instead of leaving a fresh deploy with none (OPS-17).
+php artisan db:seed --class=BarangaySeeder --force --database=pgsql_owner
+
 chown -R www-data:www-data storage bootstrap/cache
 
 exec supervisord -n -c /var/www/html/docker/supervisor/supervisord.conf

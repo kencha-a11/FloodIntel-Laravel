@@ -1,0 +1,3972 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FloodIntel API",
+    "version": "2026.11.02",
+    "description": "The HTTP contract of the FloodIntel server. It is hand-written from the code and pinned by tests/Feature/ApiContractTest.php: the document must list every route in routes/api.php exactly once, must declare the role or ability its route middleware enforces, and must name the form request that validates the body. Authentication is a Laravel Sanctum bearer token wherever `security` is present. Errors are JSON `{\"message\": ...}`; a validation failure adds an `errors` object keyed by field, and the photo-size refusal adds `photo_size` beside `photo` (D-108). Any request that declares a body above 6 MiB is answered `413` before routing, and a photo above 5 MiB is answered `422` on `photo` and `photo_size` (API-07). The API is not versioned: every path is under `/api/` and no `/v1` prefix exists (API-05)."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Same origin as the application"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Sign in, sign out, email verification, and password reset."
+    },
+    {
+      "name": "Flood reports",
+      "description": "Field level reports: filing, review queue, review decisions, the map feed, the CSV log, and the consolidation deadline."
+    },
+    {
+      "name": "Impact reports",
+      "description": "Barangay impact reports filed against a flood event."
+    },
+    {
+      "name": "Reference",
+      "description": "Barangays, roles, and reverse geocoding."
+    },
+    {
+      "name": "Users",
+      "description": "Account management, officer-only."
+    },
+    {
+      "name": "API tokens",
+      "description": "Personal access tokens for programmatic callers."
+    },
+    {
+      "name": "Realtime",
+      "description": "Supabase Realtime channel authorization and propagation-latency measurement."
+    }
+  ],
+  "paths": {
+    "/api/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Sign in and issue an API token",
+        "description": "The identifier is an email address or a contact number. A failed attempt counts against a five-attempt window keyed on the identifier and address; once the window is spent the request answers `429` with `Retry-After`.",
+        "operationId": "login",
+        "x-controller": "App\\Http\\Controllers\\Api\\AuthController@login",
+        "x-request": "App\\Http\\Requests\\Auth\\LoginRequest",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The authenticated account and a new plain-text token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/forgot-password": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Email a password reset link",
+        "description": "The answer is identical whether or not the address is registered. When the mail transport cannot deliver, the request answers `503` instead of claiming a send (fallback row 17).",
+        "operationId": "sendPasswordResetLink",
+        "x-controller": "App\\Http\\Controllers\\Api\\PasswordResetController@sendResetLink",
+        "x-request": "App\\Http\\Requests\\Auth\\ForgotPasswordRequest",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request is accepted for any address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/reset-password": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Reset a password with a mailed token",
+        "description": "A successful reset revokes every existing token for the account. The password rule is at least twelve characters with letters and numbers (FR-96).",
+        "operationId": "resetPassword",
+        "x-controller": "App\\Http\\Controllers\\Api\\PasswordResetController@reset",
+        "x-request": "App\\Http\\Requests\\Auth\\ResetPasswordRequest",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The password was reset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/email/verify/{id}/{hash}": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Verify an email address from a signed link",
+        "description": "The link is signed and throttled. Without a JSON `Accept` header the request redirects to the frontend with a query flag.",
+        "operationId": "verifyEmail",
+        "x-controller": "App\\Http\\Controllers\\Api\\AuthController@verifyEmail",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/VerifyAccountId"
+          },
+          {
+            "$ref": "#/components/parameters/VerifyHash"
+          },
+          {
+            "$ref": "#/components/parameters/Signature"
+          },
+          {
+            "$ref": "#/components/parameters/Expires"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The address is verified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to the frontend with `?email=verified` or `?email=verification-failed`.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The frontend URL carrying the outcome flag."
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/email/verify": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Read the unverified-account notice",
+        "operationId": "verificationNotice",
+        "x-controller": "App\\Http\\Controllers\\Api\\AuthController@verificationNotice",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The notice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/email/verification-notification": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Resend the verification email",
+        "description": "Answers `409` when the address is already verified and `503` when the mail transport cannot deliver (fallback row 17).",
+        "operationId": "resendVerificationEmail",
+        "x-controller": "App\\Http\\Controllers\\Api\\AuthController@resendVerification",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The verification email was sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "409": {
+            "description": "The address is already verified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/user": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Read the authenticated account",
+        "description": "The account is returned at the document root, not inside `data`.",
+        "operationId": "currentUser",
+        "x-controller": "App\\Http\\Controllers\\Api\\AuthController@me",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authenticated account with its barangay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Revoke the current token",
+        "operationId": "logout",
+        "x-controller": "App\\Http\\Controllers\\Api\\AuthController@logout",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The token was revoked."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports": {
+      "get": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "List the reports visible to the caller",
+        "description": "The caller's abilities decide the scope: `view-all-barangays` reads every barangay, `view-own-barangay` reads its own, and anyone else reads only their own reports. `status=validated` is a review-queue filter, not the consumption path; consumers read `/api/flood-reports/validated-feed`. A `barangay_id` filter is ignored for a caller without `view-all-barangays`.",
+        "operationId": "listFloodReports",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@index",
+        "x-request": "App\\Http\\Requests\\Report\\ReportLogFiltersRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SearchTerm"
+          },
+          {
+            "$ref": "#/components/parameters/FloodLevelFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FloodTypeFilter"
+          },
+          {
+            "$ref": "#/components/parameters/AlertLevelFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ReportStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/BarangayFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ObservedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/ObservedTo"
+          },
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of visible reports, newest observed first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "File a flood level report",
+        "description": "A field report carries either an `alert_level` with a `flood_type`, or a legacy `flood_level`; never both. `reported_at` is the observation instant, is required, and is immutable once stored (D-06, D-119). `client_uuid` is the reporter's idempotency key: a second submission with the same key is answered `200` with the stored report and no second row or photo (D-110), while a first submission is answered `201`. A photo above 5 MiB, or one that is not a readable JPEG, PNG, or WebP with a clean container, answers `422`. A photo write that fails answers `503` before any row exists (D-111).",
+        "operationId": "storeFloodReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@store",
+        "x-request": "App\\Http\\Requests\\Report\\StoreFloodReportRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FloodReportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A replay: the report with this `client_uuid` was already stored, and that report is returned unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReport"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The report was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/{floodReport}": {
+      "get": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Read one report",
+        "description": "The detail carries the status history, the correction chain, and the stored address. A caller who cannot see the report is refused `403`, not `404`.",
+        "operationId": "showFloodReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@show",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FloodReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/{floodReport}/validate": {
+      "post": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Validate a submitted report",
+        "description": "Only a `submitted` report can be validated. A report in any other state answers `422` on `status`.",
+        "operationId": "validateFloodReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@validateReport",
+        "x-request": "App\\Http\\Requests\\Report\\ValidateFloodReportRequest",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FloodReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The validated report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/{floodReport}/return": {
+      "post": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Return a submitted report for correction",
+        "description": "The returned report can be corrected once; the correction cites it through `supersedes_id`.",
+        "operationId": "returnFloodReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@returnReport",
+        "x-request": "App\\Http\\Requests\\Report\\ReturnFloodReportRequest",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FloodReportId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReturnReportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The returned report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/{floodReport}/reject": {
+      "post": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Reject a submitted report",
+        "description": "Rejection is the officer-only route group's (FR-108); the ability it authorizes on is `validate-report`, which staff also hold, so a staff member is refused `403` by the group.",
+        "operationId": "rejectFloodReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@reject",
+        "x-request": "App\\Http\\Requests\\Report\\RejectFloodReportRequest",
+        "x-required-roles": [
+          "mdrrmo_officer"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FloodReportId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectReportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rejected report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/{floodReport}/override": {
+      "post": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Override a decision already made",
+        "description": "Only a `validated` or `returned` report can be overridden, and only to `validated`, `returned`, or `rejected`.",
+        "operationId": "overrideFloodReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@overrideReport",
+        "x-request": "App\\Http\\Requests\\Report\\OverrideFloodReportStatusRequest",
+        "x-required-roles": [
+          "mdrrmo_officer"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FloodReportId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverrideReportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The overridden report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/deadlines": {
+      "get": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Read the consolidation deadline",
+        "description": "The window runs cutoff to cutoff (04:00 and 15:00 Asia/Manila, D-24). `pending.basis` names whether any row fell back to its receipt time because it has no observation instant.",
+        "operationId": "floodReportDeadlines",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@deadlines",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current window and its per-barangay pending counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeadlineResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/validated-feed": {
+      "get": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Read the validated map feed",
+        "description": "This is the consumption path for FR-24: it reads only reports that passed the one `validated` scope, so a consumer never filters status itself. `depth_cm` is null when the report recorded no depth; the derived surface composes the basemap elevation with it (D-78).",
+        "operationId": "validatedReportFeed",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@validatedFeed",
+        "x-request": "App\\Http\\Requests\\Report\\ValidatedFeedRequest",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff",
+          "rescue_leader"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MinLatitude"
+          },
+          {
+            "$ref": "#/components/parameters/MaxLatitude"
+          },
+          {
+            "$ref": "#/components/parameters/MinLongitude"
+          },
+          {
+            "$ref": "#/components/parameters/MaxLongitude"
+          },
+          {
+            "$ref": "#/components/parameters/BarangayFilter"
+          },
+          {
+            "$ref": "#/components/parameters/AlertLevelFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ObservedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/ObservedTo"
+          },
+          {
+            "$ref": "#/components/parameters/FeedLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feed, newest observed first, with a count and a truncation flag instead of pagination.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidatedFeedPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-reports/export": {
+      "get": {
+        "tags": [
+          "Flood reports"
+        ],
+        "summary": "Export the report log as CSV",
+        "description": "The export reads the same filters as the queue, so the two views cannot disagree (FR-29). The photo is a URL cell, never the bytes. The response is streamed in 500-row chunks; `X-Report-Count` states the row count before the stream begins.",
+        "operationId": "exportFloodReports",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodReportController@export",
+        "x-request": "App\\Http\\Requests\\Report\\ExportFloodReportsRequest",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SearchTerm"
+          },
+          {
+            "$ref": "#/components/parameters/FloodLevelFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FloodTypeFilter"
+          },
+          {
+            "$ref": "#/components/parameters/AlertLevelFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ReportStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/BarangayFilter"
+          },
+          {
+            "$ref": "#/components/parameters/ObservedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/ObservedTo"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The CSV stream. Columns: report_id, barangay, flood_type, status, status_label, alert_level, alert_level_label, reporter_name, reporter_role, observed_at, received_at, latency_seconds, latitude, longitude, address, depth_cm, notes, photo_url.",
+            "headers": {
+              "Content-Type": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "text/csv; charset=UTF-8"
+                  ]
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`attachment; filename=flood-report-log-YYYYmmdd-HHMMSS.csv`"
+              },
+              "X-Report-Count": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "The number of rows the stream will contain."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-events": {
+      "get": {
+        "tags": [
+          "Impact reports"
+        ],
+        "summary": "List the flood events still accepting filings",
+        "operationId": "listFloodEvents",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodEventController@index",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The open events, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloodEventList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/flood-impact-reports": {
+      "get": {
+        "tags": [
+          "Impact reports"
+        ],
+        "summary": "List the impact reports visible to the caller",
+        "description": "The same visibility rule as the level reports; `per_page` is read without a validation rule.",
+        "operationId": "listFloodImpactReports",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodImpactReportController@index",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of visible impact reports, newest observed first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactReportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Impact reports"
+        ],
+        "summary": "File a barangay impact report",
+        "description": "Only a captain holds `submit-impact-report`. The barangay is the caller's own and is never read from the payload. `individuals` must be at least `families`, and a cited level report must belong to the caller's barangay (D-118). `reported_at` is required and immutable (D-119). `client_uuid` is the idempotency key: a replay answers `200` with the stored report (D-110).",
+        "operationId": "storeFloodImpactReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\FloodImpactReportController@store",
+        "x-request": "App\\Http\\Requests\\Report\\StoreFloodImpactReportRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpactReportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A replay: the report with this `client_uuid` was already stored, and that report is returned unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactReport"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The impact report was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/geocode/reverse": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "Translate coordinates into an address",
+        "description": "The provider budget is shared and a failure is absorbed: an unavailable provider answers `200` with a null address rather than an error, because the address is a convenience and the coordinates are the record (FR-32).",
+        "operationId": "reverseGeocode",
+        "x-controller": "App\\Http\\Controllers\\Api\\GeocodeController@reverse",
+        "x-request": "App\\Http\\Requests\\Geocode\\ReverseGeocodeRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The translated address, or null when no address could be resolved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseGeocodeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/barangays": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "List the active barangays",
+        "description": "Superseded rows stay in the table for their reports but are not offered here.",
+        "operationId": "listBarangays",
+        "x-controller": "App\\Http\\Controllers\\Api\\BarangayController@index",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every active barangay, ordered by name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarangayList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/roles": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "Read the role-and-ability matrix",
+        "description": "Read-only: the catalogue is closed (FR-105), so a grant change is a recorded decision rather than a request here. The gate is the `manage-users` ability, not the officer route group (D-114).",
+        "operationId": "listRoles",
+        "x-controller": "App\\Http\\Controllers\\Api\\RoleController@index",
+        "x-required-ability": "manage-users",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every role with its interface, scope, and abilities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List accounts",
+        "description": "Officer-only. `role` and `barangay_id` filter the list; `per_page` is read without a validation rule.",
+        "operationId": "listUsers",
+        "x-controller": "App\\Http\\Controllers\\Api\\UserController@index",
+        "x-required-roles": [
+          "mdrrmo_officer"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/UserRole"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/BarangayFilter"
+          },
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of accounts, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Create an account",
+        "description": "The password rule is at least twelve characters with letters and numbers. A barangay is required for every barangay-scoped role, checked after validation so the error binds to `barangay_id` (FR-107).",
+        "operationId": "storeUser",
+        "x-controller": "App\\Http\\Controllers\\Api\\UserController@store",
+        "x-request": "App\\Http\\Requests\\User\\StoreUserRequest",
+        "x-required-roles": [
+          "mdrrmo_officer"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/users/{user}": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update an account",
+        "description": "Every field is optional. An officer cannot change their own role (FR-103); that attempt answers `403`. A role that requires a barangay cannot be left without one.",
+        "operationId": "updateUser",
+        "x-controller": "App\\Http\\Controllers\\Api\\UserController@update",
+        "x-request": "App\\Http\\Requests\\User\\UpdateUserRequest",
+        "x-required-roles": [
+          "mdrrmo_officer"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Delete an account",
+        "description": "An officer cannot delete their own account; that attempt answers `403`.",
+        "operationId": "destroyUser",
+        "x-controller": "App\\Http\\Controllers\\Api\\UserController@destroy",
+        "x-required-roles": [
+          "mdrrmo_officer"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The account was deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/tokens": {
+      "get": {
+        "tags": [
+          "API tokens"
+        ],
+        "summary": "List the caller's tokens",
+        "operationId": "listTokens",
+        "x-controller": "App\\Http\\Controllers\\Api\\TokenController@index",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every token the account owns. The plain-text value is never returned again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "API tokens"
+        ],
+        "summary": "Create a token",
+        "description": "The plain-text token is returned once, in `token`; only its hash is stored.",
+        "operationId": "createToken",
+        "x-controller": "App\\Http\\Controllers\\Api\\TokenController@store",
+        "x-request": "App\\Http\\Requests\\Token\\CreateTokenRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored token and its plain-text value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "API tokens"
+        ],
+        "summary": "Revoke every token",
+        "operationId": "revokeAllTokens",
+        "x-controller": "App\\Http\\Controllers\\Api\\TokenController@destroyAll",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Every token the account owned was revoked, including the one that authorized this request."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/tokens/{token}": {
+      "delete": {
+        "tags": [
+          "API tokens"
+        ],
+        "summary": "Revoke one token",
+        "operationId": "revokeToken",
+        "x-controller": "App\\Http\\Controllers\\Api\\TokenController@destroy",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TokenId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The token was revoked."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/realtime/authorization": {
+      "get": {
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Authorize a Realtime subscription",
+        "description": "The channel topics are derived from the caller's identity and never read from the request. When Realtime is not configured the answer is `enabled: false` and the client keeps its polling substitute (D-63, D-65).",
+        "operationId": "realtimeAuthorization",
+        "x-controller": "App\\Http\\Controllers\\Api\\RealtimeController@authorization",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Realtime settings and the caller's topics, or `enabled: false`.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeAuthorizationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/realtime/latency": {
+      "post": {
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Record an applied-update instant",
+        "description": "The report must be visible to the caller. A sample whose latency cannot be computed is stored with a null latency and reported as excluded rather than dropped.",
+        "operationId": "recordRealtimeLatency",
+        "x-controller": "App\\Http\\Controllers\\Api\\RealtimeController@recordLatency",
+        "x-request": "App\\Http\\Requests\\Realtime\\RecordRealtimeLatencyRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RealtimeLatencyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The sample was stored."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Read the propagation-latency summary",
+        "description": "The window is clamped to 1–168 hours. `excluded` counts samples with no usable instant, so a selective window cannot be presented as a capability (TNFR-05, D-67).",
+        "operationId": "realtimeLatencySummary",
+        "x-controller": "App\\Http\\Controllers\\Api\\RealtimeController@latencySummary",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 168,
+              "default": 24
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The median, maximum, bound, and breach count for the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeLatencySummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sanctum": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum personal access token",
+        "description": "Send the plain-text token from `POST /api/login` or `POST /api/tokens` as `Authorization: Bearer <token>`."
+      }
+    },
+    "parameters": {
+      "FloodReportId": {
+        "name": "floodReport",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "UserId": {
+        "name": "user",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "TokenId": {
+        "name": "token",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "VerifyAccountId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "VerifyHash": {
+        "name": "hash",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Signature": {
+        "name": "signature",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "The signature the signed URL carries."
+      },
+      "Expires": {
+        "name": "expires",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer"
+        },
+        "description": "The signed URL's expiry instant, when the link is time-limited."
+      },
+      "SearchTerm": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "description": "Case-insensitive match against notes, landmark, address, and the reporter's full name."
+      },
+      "FloodLevelFilter": {
+        "name": "flood_level",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "$ref": "#/components/schemas/FloodLevel"
+        }
+      },
+      "FloodTypeFilter": {
+        "name": "flood_type",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "$ref": "#/components/schemas/FloodType"
+        }
+      },
+      "AlertLevelFilter": {
+        "name": "alert_level",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "$ref": "#/components/schemas/AlertLevel"
+        }
+      },
+      "ReportStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "$ref": "#/components/schemas/FloodReportStatus"
+        }
+      },
+      "BarangayFilter": {
+        "name": "barangay_id",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "ObservedFrom": {
+        "name": "from",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": "Include reports observed at or after this instant."
+      },
+      "ObservedTo": {
+        "name": "to",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": "Include reports observed at or before this instant."
+      },
+      "PerPage": {
+        "name": "per_page",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 15
+        }
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "FeedLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 300
+        }
+      },
+      "MinLatitude": {
+        "name": "min_lat",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
+      },
+      "MaxLatitude": {
+        "name": "max_lat",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
+      },
+      "MinLongitude": {
+        "name": "min_lng",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      },
+      "MaxLongitude": {
+        "name": "max_lng",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "The request carries no valid Sanctum token.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "message": "Unauthenticated."
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller's role or ability does not admit this route, the email address is unverified, or the action's own policy refused it. A policy refusal reads \"This action is unauthorized.\"; the role gate answers with an empty message. The role and ability that apply are stated on each operation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No record with that identifier exists, or it is not visible to the caller (the report detail answers `403` for a report it may not read, and `404` only for one that does not exist).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "message": "No query results for model [App\\Models\\FloodReport] 999."
+            }
+          }
+        }
+      },
+      "ValidationFailed": {
+        "description": "One or more fields failed validation. `errors` is keyed by field name; the photo size refusal adds `photo_size` beside `photo` (D-108). Nothing is stored.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "A named rate limiter refused the request. The response carries `Retry-After` in seconds.",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Seconds to wait before retrying."
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "message": "Too Many Attempts."
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The declared request body exceeds 6 MiB. The application answers before routing, authentication, or validation (API-07).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "message": "The request body is too large. The limit is 6 MB."
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required dependency — the mail transport or the photo store — could not be reached, so the request is refused rather than answered with a success the infrastructure cannot back (fallback row 17, D-111).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "mail": {
+                "value": {
+                  "message": "The reset email could not be sent. Try again later."
+                }
+              },
+              "photo": {
+                "value": {
+                  "message": "The photo could not be stored. Try again later."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationError": {
+        "type": "object",
+        "required": [
+          "message",
+          "errors"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "UserRole": {
+        "type": "string",
+        "enum": [
+          "mdrrmo_officer",
+          "mdrrmo_staff",
+          "barangay_captain",
+          "barangay_tanod",
+          "rescue_leader"
+        ]
+      },
+      "AccessInterface": {
+        "type": "string",
+        "enum": [
+          "command_center",
+          "field_reporter"
+        ]
+      },
+      "UserAbility": {
+        "type": "string",
+        "enum": [
+          "validate-report",
+          "override-validation",
+          "consolidate-reports",
+          "dispatch-assets",
+          "generate-provincial-report",
+          "submit-impact-report",
+          "submit-flood-report",
+          "view-validated-reports",
+          "update-rescue-status",
+          "manage-users",
+          "view-all-barangays",
+          "view-own-barangay"
+        ]
+      },
+      "FloodLevel": {
+        "type": "string",
+        "enum": [
+          "ankle",
+          "knee",
+          "waist",
+          "chest",
+          "neck"
+        ]
+      },
+      "AlertLevel": {
+        "type": "string",
+        "enum": [
+          "alert",
+          "get_ready",
+          "red_alert"
+        ]
+      },
+      "FloodType": {
+        "type": "string",
+        "enum": [
+          "river_overflow",
+          "ponding"
+        ]
+      },
+      "FloodReportStatus": {
+        "type": "string",
+        "enum": [
+          "submitted",
+          "validated",
+          "returned",
+          "rejected"
+        ]
+      },
+      "FloodImpactStatus": {
+        "type": "string",
+        "enum": [
+          "submitted",
+          "superseded"
+        ]
+      },
+      "AnomalyFlagValue": {
+        "type": "string",
+        "enum": [
+          "gps_outside_barangay",
+          "duplicate_window",
+          "observation_receipt_deviation",
+          "missing_photo"
+        ]
+      },
+      "Barangay": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "code",
+          "is_active"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BarangayList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Barangay"
+            }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "first_name",
+          "last_name",
+          "full_name",
+          "email",
+          "contact_number",
+          "role",
+          "role_label",
+          "interface",
+          "abilities",
+          "barangay",
+          "email_verified_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "contact_number": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "role_label": {
+            "type": "string"
+          },
+          "interface": {
+            "$ref": "#/components/schemas/AccessInterface"
+          },
+          "abilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAbility"
+            }
+          },
+          "barangay": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Barangay"
+              }
+            ]
+          },
+          "email_verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuthSession": {
+        "type": "object",
+        "required": [
+          "user",
+          "token"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "token": {
+            "type": "string",
+            "description": "The plain-text Sanctum token. It is returned once and never again."
+          }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "required": [
+          "value",
+          "label",
+          "interface",
+          "barangay_scoped",
+          "abilities"
+        ],
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "label": {
+            "type": "string"
+          },
+          "interface": {
+            "type": "object",
+            "required": [
+              "value",
+              "label"
+            ],
+            "properties": {
+              "value": {
+                "$ref": "#/components/schemas/AccessInterface"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          },
+          "barangay_scoped": {
+            "type": "boolean"
+          },
+          "abilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "value",
+                "label"
+              ],
+              "properties": {
+                "value": {
+                  "$ref": "#/components/schemas/UserAbility"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "RoleList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            }
+          }
+        }
+      },
+      "Token": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "abilities",
+          "created_at",
+          "last_used_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "abilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "TokenList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Token"
+            }
+          }
+        }
+      },
+      "CreatedToken": {
+        "type": "object",
+        "required": [
+          "data",
+          "token"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Token"
+          },
+          "token": {
+            "type": "string",
+            "description": "The plain-text token. It is returned once and never again."
+          }
+        }
+      },
+      "PaginationLinks": {
+        "type": "object",
+        "required": [
+          "first",
+          "last",
+          "prev",
+          "next"
+        ],
+        "properties": {
+          "first": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "last": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "prev": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "required": [
+          "current_page",
+          "from",
+          "last_page",
+          "links",
+          "path",
+          "per_page",
+          "to",
+          "total"
+        ],
+        "properties": {
+          "current_page": {
+            "type": "integer"
+          },
+          "from": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "last_page": {
+            "type": "integer"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "url",
+                "label",
+                "active"
+              ],
+              "properties": {
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "path": {
+            "type": "string"
+          },
+          "per_page": {
+            "type": "integer"
+          },
+          "to": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "FloodReportUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "first_name",
+          "last_name",
+          "role"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        }
+      },
+      "ReportBarangay": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "AnomalyFlag": {
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/AnomalyFlagValue"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "StatusChange": {
+        "type": "object",
+        "required": [
+          "id",
+          "actor_name",
+          "actor_role",
+          "actor_role_label",
+          "from_status",
+          "from_status_label",
+          "to_status",
+          "to_status_label",
+          "reason",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "actor_name": {
+            "type": "string"
+          },
+          "actor_role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "actor_role_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FloodReportStatus"
+              }
+            ]
+          },
+          "from_status_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to_status": {
+            "$ref": "#/components/schemas/FloodReportStatus"
+          },
+          "to_status_label": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SupersededReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "status_label",
+          "reported_at",
+          "returned_reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FloodReportStatus"
+          },
+          "status_label": {
+            "type": "string"
+          },
+          "reported_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "returned_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "FloodReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "user",
+          "barangay",
+          "flood_level",
+          "flood_level_label",
+          "severity",
+          "alert_level",
+          "alert_level_label",
+          "alert_severity",
+          "flood_type",
+          "flood_type_label",
+          "depth_cm",
+          "landmark",
+          "latitude",
+          "longitude",
+          "gps_accuracy",
+          "address",
+          "photo_url",
+          "notes",
+          "reported_at",
+          "status",
+          "status_label",
+          "anomaly_flags",
+          "rejection_reason",
+          "rejected_at",
+          "client_uuid",
+          "supersedes_id",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user": {
+            "$ref": "#/components/schemas/FloodReportUser"
+          },
+          "barangay": {
+            "$ref": "#/components/schemas/ReportBarangay"
+          },
+          "flood_level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FloodLevel"
+              }
+            ]
+          },
+          "flood_level_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "alert_level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AlertLevel"
+              }
+            ]
+          },
+          "alert_level_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "alert_severity": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "flood_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FloodType"
+              }
+            ]
+          },
+          "flood_type_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "depth_cm": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "landmark": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "gps_accuracy": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "photo_url": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reported_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The observation instant the reporter sent. Null only for a legacy row written before the field was required (D-119)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/FloodReportStatus"
+          },
+          "status_label": {
+            "type": "string"
+          },
+          "status_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusChange"
+            },
+            "description": "Present on the detail and on a decision response; absent from the list and from a fresh submission."
+          },
+          "anomaly_flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnomalyFlag"
+            }
+          },
+          "rejection_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rejected_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "client_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The reporter's idempotency key, echoed so a client can match a stored row to its queue record (D-110)."
+          },
+          "supersedes_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "superseded_by_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Present only when the relation is loaded."
+          },
+          "supersedes": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SupersededReport"
+              }
+            ],
+            "description": "Present only when the relation is loaded."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FloodReportPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloodReport"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "ValidatedFeedRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "latitude",
+          "longitude",
+          "gps_accuracy",
+          "barangay",
+          "alert_level",
+          "alert_level_label",
+          "alert_severity",
+          "depth_cm",
+          "observed_at",
+          "received_at",
+          "status",
+          "status_label",
+          "source",
+          "source_label"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "gps_accuracy": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "barangay": {
+            "$ref": "#/components/schemas/ReportBarangay"
+          },
+          "alert_level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AlertLevel"
+              }
+            ]
+          },
+          "alert_level_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "alert_severity": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "depth_cm": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null when the report recorded no depth; the derived surface composes the basemap elevation with it (D-78)."
+          },
+          "observed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "validated"
+            ]
+          },
+          "status_label": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "reported"
+            ]
+          },
+          "source_label": {
+            "type": "string",
+            "enum": [
+              "Reported"
+            ]
+          }
+        }
+      },
+      "ValidatedFeedPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidatedFeedRow"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "limit",
+              "count",
+              "truncated"
+            ],
+            "properties": {
+              "limit": {
+                "type": "integer"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "True when more rows matched than the limit returned."
+              }
+            }
+          }
+        }
+      },
+      "DeadlineResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "timezone",
+              "cutoffs",
+              "now",
+              "window",
+              "pending"
+            ],
+            "properties": {
+              "timezone": {
+                "type": "string"
+              },
+              "cutoffs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+                }
+              },
+              "now": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "window": {
+                "type": "object",
+                "required": [
+                  "starts_at",
+                  "next_cutoff_at",
+                  "label"
+                ],
+                "properties": {
+                  "starts_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "next_cutoff_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              },
+              "pending": {
+                "type": "object",
+                "required": [
+                  "basis",
+                  "total",
+                  "by_barangay"
+                ],
+                "properties": {
+                  "basis": {
+                    "type": "string",
+                    "enum": [
+                      "reported_at",
+                      "reported_at_with_created_at_fallback"
+                    ]
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "by_barangay": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "barangay_id",
+                        "barangay",
+                        "pending"
+                      ],
+                      "properties": {
+                        "barangay_id": {
+                          "type": "integer"
+                        },
+                        "barangay": {
+                          "type": "string"
+                        },
+                        "pending": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "FloodEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "starts_at",
+          "ends_at",
+          "is_closed"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "is_closed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FloodEventList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloodEvent"
+            }
+          }
+        }
+      },
+      "ImpactReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "barangay_id",
+          "event_id",
+          "families",
+          "individuals",
+          "breakdown",
+          "related_level_report_ids",
+          "remarks",
+          "reported_at",
+          "status",
+          "supersedes_id",
+          "client_uuid",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "barangay_id": {
+            "type": "integer"
+          },
+          "event_id": {
+            "type": "integer"
+          },
+          "families": {
+            "type": "integer"
+          },
+          "individuals": {
+            "type": "integer"
+          },
+          "breakdown": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "related_level_report_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            }
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reported_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FloodImpactStatus"
+          },
+          "supersedes_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "client_uuid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ImpactReportPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImpactReport"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "UserPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "ReverseGeocodeResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "address"
+            ],
+            "properties": {
+              "address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "RealtimeAuthorizationResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "enabled"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "anon_key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "token": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "A short-lived Supabase-compatible JWT. Its subject is the account id."
+              },
+              "expires_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "`reports:all`, `reports:barangay:<id>`, and `reports:user:<id>`, derived from the caller's abilities."
+              }
+            }
+          }
+        }
+      },
+      "RealtimeLatencyInput": {
+        "type": "object",
+        "required": [
+          "report_id",
+          "event",
+          "applied_at"
+        ],
+        "properties": {
+          "report_id": {
+            "type": "integer"
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "report.created",
+              "report.status_changed"
+            ]
+          },
+          "applied_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RealtimeLatencySummaryResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "window_hours",
+              "samples",
+              "excluded",
+              "median_ms",
+              "max_ms",
+              "bound_ms",
+              "breaches"
+            ],
+            "properties": {
+              "window_hours": {
+                "type": "integer"
+              },
+              "samples": {
+                "type": "integer"
+              },
+              "excluded": {
+                "type": "integer"
+              },
+              "median_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "max_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "bound_ms": {
+                "type": "integer",
+                "enum": [
+                  3000
+                ]
+              },
+              "breaches": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "LoginInput": {
+        "type": "object",
+        "required": [
+          "login",
+          "password"
+        ],
+        "properties": {
+          "login": {
+            "type": "string",
+            "description": "An email address or a contact number."
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "ForgotPasswordInput": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "ResetPasswordInput": {
+        "type": "object",
+        "required": [
+          "token",
+          "email",
+          "password",
+          "password_confirmation"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "description": "At least twelve characters with letters and numbers (FR-96)."
+          },
+          "password_confirmation": {
+            "type": "string",
+            "description": "Must equal `password`."
+          }
+        }
+      },
+      "FloodReportInput": {
+        "type": "object",
+        "required": [
+          "latitude",
+          "longitude",
+          "photo",
+          "reported_at"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "alert_level",
+              "flood_type"
+            ]
+          },
+          {
+            "required": [
+              "flood_level"
+            ]
+          }
+        ],
+        "properties": {
+          "alert_level": {
+            "type": "string",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AlertLevel"
+              }
+            ],
+            "description": "One of the two level spellings. Providing both `alert_level` and `flood_level` is refused."
+          },
+          "flood_level": {
+            "type": "string",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FloodLevel"
+              }
+            ],
+            "description": "The legacy level spelling. A legacy report carries no flood type."
+          },
+          "flood_type": {
+            "type": "string",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FloodType"
+              }
+            ],
+            "description": "Required with `alert_level`."
+          },
+          "depth_cm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "landmark": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "gps_accuracy": {
+            "type": "number",
+            "minimum": 0
+          },
+          "photo": {
+            "type": "string",
+            "format": "binary",
+            "description": "The report photo. At most 5 MiB, read as JPEG, PNG, or WebP with a clean container (API-08). Above 5 MiB the answer is `422` on `photo` and `photo_size` (D-108)."
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "reported_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The capture instant, never later than the server clock. Required; the server never substitutes its own clock (D-06, D-119)."
+          },
+          "client_uuid": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The reporter's idempotency key, usually the queue record's id or `local-<epoch>-<hex>` (D-110)."
+          },
+          "supersedes_id": {
+            "type": "integer",
+            "description": "The returned report this submission corrects. It must be in the caller's barangay, still returned, and the head of its chain (FR-14)."
+          }
+        }
+      },
+      "ImpactReportInput": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "families",
+          "individuals",
+          "reported_at"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "integer"
+          },
+          "families": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "individuals": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Must be at least `families`."
+          },
+          "breakdown": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "related_level_report_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 50,
+            "items": {
+              "type": "integer"
+            },
+            "description": "Level reports of the caller's own barangay, at most fifty, without repeats (D-118)."
+          },
+          "remarks": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "reported_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The capture instant, never later than the server clock; required and immutable (D-119)."
+          },
+          "client_uuid": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "supersedes_id": {
+            "type": "integer",
+            "description": "The submitted report this correction answers, in the same barangay and event; the head check runs under lock (D-110)."
+          }
+        }
+      },
+      "CreateUserInput": {
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "contact_number",
+          "password",
+          "role"
+        ],
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "last_name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255
+          },
+          "contact_number": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "description": "At least twelve characters with letters and numbers (FR-96)."
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "barangay_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Required when the role is barangay-scoped (FR-107)."
+          }
+        }
+      },
+      "UpdateUserInput": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "last_name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255
+          },
+          "contact_number": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "barangay_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateTokenInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "abilities": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Defaults to `[\"*\"]` when omitted."
+          }
+        }
+      },
+      "ReturnReportInput": {
+        "type": "object",
+        "required": [
+          "return_reason"
+        ],
+        "properties": {
+          "return_reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "RejectReportInput": {
+        "type": "object",
+        "required": [
+          "rejection_reason"
+        ],
+        "properties": {
+          "rejection_reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "OverrideReportInput": {
+        "type": "object",
+        "required": [
+          "to_status",
+          "reason"
+        ],
+        "properties": {
+          "to_status": {
+            "type": "string",
+            "enum": [
+              "validated",
+              "returned",
+              "rejected"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  }
+}

@@ -9,6 +9,7 @@ use App\Enums\UserRole;
 use App\Models\Barangay;
 use App\Models\FloodReport;
 use App\Models\User;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -533,6 +534,40 @@ it('refuses to change a stored observation time', function () {
 
     expect(fn () => $report->update(['reported_at' => now()->addMinute()]))
         ->toThrow(LogicException::class, 'The observation time is immutable.');
+});
+
+it('deletes the stored photo when the insert fails', function () {
+    Storage::fake('public');
+
+    $tanod = User::factory()->tanod()->create();
+
+    FloodReport::creating(function (): void {
+        throw new RuntimeException('simulated insert failure');
+    });
+
+    $this->withoutExceptionHandling();
+
+    expect(fn () => $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->post('/api/flood-reports', floodReportPayload()))
+        ->toThrow(RuntimeException::class, 'simulated insert failure');
+
+    expect(FloodReport::count())->toBe(0)
+        ->and(Storage::disk('public')->allFiles())->toBe([]);
+});
+
+it('refuses the report when the photo cannot be stored', function () {
+    $disk = Mockery::mock(Filesystem::class);
+    $disk->shouldReceive('put')->once()->andReturnFalse();
+    Storage::set('public', $disk);
+
+    $tanod = User::factory()->tanod()->create();
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->postJson('/api/flood-reports', floodReportPayload())
+        ->assertStatus(503)
+        ->assertJsonPath('message', 'The photo could not be stored. Try again later.');
+
+    expect(FloodReport::count())->toBe(0);
 });
 
 it('rejects a future reported_at', function () {

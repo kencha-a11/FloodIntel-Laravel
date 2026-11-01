@@ -28,6 +28,7 @@ use App\Support\InvalidUploadedImage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
@@ -36,6 +37,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class FloodReportController extends Controller
 {
@@ -272,6 +274,12 @@ class FloodReportController extends Controller
             }
 
             return $this->reportResponse($winner, 200);
+        } catch (Throwable $exception) {
+            // Any other failure leaves the photo this request stored without a
+            // row, so it is deleted before the error propagates (D-8).
+            Storage::disk('public')->delete($path);
+
+            throw $exception;
         }
 
         $broadcast->created($report);
@@ -547,7 +555,13 @@ class FloodReportController extends Controller
             $image['extension'],
         );
 
-        Storage::disk('public')->put($path, $image['bytes']);
+        // A write that failed silently would answer 201 with a row pointing at
+        // no photo, so the report is refused before any row exists (rule 9).
+        if (! Storage::disk('public')->put($path, $image['bytes'])) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'The photo could not be stored. Try again later.',
+            ], 503));
+        }
 
         return $path;
     }

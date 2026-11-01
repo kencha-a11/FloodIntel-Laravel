@@ -128,6 +128,18 @@ it('does not resend the notification for a verified user', function () {
     Notification::assertNothingSent();
 });
 
+it('answers 503 when the verification email cannot be sent', function () {
+    failMailTransport();
+
+    $user = User::factory()->unverified()->create();
+    $token = $user->createToken('api_token')->plainTextToken;
+
+    $this->withToken($token)
+        ->postJson('/api/email/verification-notification')
+        ->assertStatus(503)
+        ->assertJsonPath('message', 'The verification email could not be sent. Try again later.');
+});
+
 it('blocks unverified users from verified routes', function () {
     $user = User::factory()->unverified()->create();
     $token = $user->createToken('api_token')->plainTextToken;

@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Support\DatabaseIdentity;
+use App\Support\MailAvailability;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -108,7 +109,13 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email already verified.'], 409);
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        // A send that cannot deliver must not answer as if it had (fallback
+        // row 17, rule 9).
+        if (! MailAvailability::send(fn () => $request->user()->sendEmailVerificationNotification())) {
+            return response()->json([
+                'message' => 'The verification email could not be sent. Try again later.',
+            ], 503);
+        }
 
         return response()->json(['message' => 'Verification link sent.'], 202);
     }

@@ -53,6 +53,28 @@ it('requires a valid email to request a reset link', function () {
         ->assertJsonValidationErrors(['email']);
 });
 
+it('answers 503 when the reset email cannot be sent', function () {
+    failMailTransport();
+
+    $user = User::factory()->create();
+
+    $this->postJson('/api/forgot-password', ['email' => $user->email])
+        ->assertStatus(503)
+        ->assertJsonPath('message', 'The reset email could not be sent. Try again later.');
+});
+
+it('does not claim delivery when production uses a non-delivering mailer', function () {
+    app()->detectEnvironment(fn (): string => 'production');
+
+    config(['mail.default' => 'log']);
+
+    $user = User::factory()->create();
+
+    $this->postJson('/api/forgot-password', ['email' => $user->email])
+        ->assertStatus(503)
+        ->assertJsonPath('message', 'The reset email could not be sent. Try again later.');
+});
+
 it('resets the password with a valid token and revokes existing tokens', function () {
     $user = User::factory()->create(['password' => 'old-password']);
     $token = Password::broker()->createToken($user);

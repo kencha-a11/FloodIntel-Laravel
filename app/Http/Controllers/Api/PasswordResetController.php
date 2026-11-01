@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Models\User;
+use App\Support\MailAvailability;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Password;
@@ -18,7 +19,19 @@ class PasswordResetController extends Controller
      */
     public function sendResetLink(ForgotPasswordRequest $request): JsonResponse
     {
-        $status = Password::broker()->sendResetLink($request->only('email'));
+        $status = null;
+
+        // A send that cannot deliver must not answer as if it had (fallback
+        // row 17, rule 9).
+        $sent = MailAvailability::send(function () use ($request, &$status): void {
+            $status = Password::broker()->sendResetLink($request->only('email'));
+        });
+
+        if (! $sent) {
+            return response()->json([
+                'message' => 'The reset email could not be sent. Try again later.',
+            ], 503);
+        }
 
         if ($status === Password::RESET_THROTTLED) {
             return response()->json([

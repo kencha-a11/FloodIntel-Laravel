@@ -14,11 +14,13 @@ use App\Http\Requests\Report\ValidateFloodReportRequest;
 use App\Http\Resources\FloodReportResource;
 use App\Http\Resources\ValidatedReportFeedResource;
 use App\Jobs\ResolveReportAddress;
+use App\Models\Barangay;
 use App\Models\FloodReport;
 use App\Models\User;
 use App\Realtime\ReportBroadcast;
 use App\Services\FloodReportTransitions;
 use App\Services\ReportAnomalyDetector;
+use App\Support\ConsolidationWindow;
 use App\Support\ImageSanitizer;
 use App\Support\InvalidUploadedImage;
 use Illuminate\Http\JsonResponse;
@@ -43,6 +45,7 @@ class FloodReportController extends Controller
             ->visibleTo($user)
             ->with(['user', 'barangay'])
             ->when($request->filled('flood_level'), fn ($query) => $query->where('flood_level', $request->string('flood_level')))
+            ->when($request->filled('alert_level'), fn ($query) => $query->where('alert_level', $request->string('alert_level')))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('barangay_id') && $user->hasAbility(UserAbility::ViewAllBarangays), fn ($query) => $query->where('barangay_id', $request->integer('barangay_id')))
             ->when($request->filled('from'), fn ($query) => $query->where('reported_at', '>=', $request->date('from')))
@@ -51,6 +54,63 @@ class FloodReportController extends Controller
             ->paginate($request->integer('per_page', 15));
 
         return FloodReportResource::collection($reports);
+    }
+
+    /**
+     * Per-barangay pending counts for the current consolidation window (FR-27, D-24).
+     */
+    public function deadlines(): JsonResponse
+    {
+        $window = ConsolidationWindow::current();
+        $start = $window->startsAt->utc();
+        $end = $window->nextCutoffAt->utc();
+
+        $pending = FloodReport::query()
+            ->where('status', FloodReportStatus::Submitted)
+            ->where(function ($query) use ($start, $end): void {
+                $query->where(function ($query) use ($start, $end): void {
+                    $query->whereNotNull('reported_at')
+                        ->where('reported_at', '>=', $start)
+                        ->where('reported_at', '<', $end);
+                })->orWhere(function ($query) use ($start, $end): void {
+                    $query->whereNull('reported_at')
+                        ->where('created_at', '>=', $start)
+                        ->where('created_at', '<', $end);
+                });
+            });
+
+        $counts = (clone $pending)
+            ->selectRaw('barangay_id, count(*) as pending')
+            ->groupBy('barangay_id')
+            ->pluck('pending', 'barangay_id');
+
+        $fallbackRows = (clone $pending)->whereNull('reported_at')->count();
+
+        $byBarangay = Barangay::query()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Barangay $barangay): array => [
+                'barangay_id' => $barangay->id,
+                'barangay' => $barangay->name,
+                'pending' => (int) ($counts[$barangay->id] ?? 0),
+            ])
+            ->values();
+
+        return response()->json(['data' => [
+            'timezone' => $window->timezone,
+            'cutoffs' => $window->cutoffs,
+            'now' => $window->now->toIso8601String(),
+            'window' => [
+                'starts_at' => $window->startsAt->toIso8601String(),
+                'next_cutoff_at' => $window->nextCutoffAt->toIso8601String(),
+                'label' => $window->label(),
+            ],
+            'pending' => [
+                'basis' => $fallbackRows > 0 ? 'reported_at_with_created_at_fallback' : 'reported_at',
+                'total' => (int) $counts->sum(),
+                'by_barangay' => $byBarangay,
+            ],
+        ]]);
     }
 
     /**

@@ -41,6 +41,8 @@ Route::middleware(['auth:sanctum', 'db.identity', 'throttle:auth-status'])->grou
 
 Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'throttle:auth-status'])->group(function () {
     Route::get('/flood-reports', [FloodReportController::class, 'index']);
+    Route::get('/flood-reports/deadlines', [FloodReportController::class, 'deadlines'])
+        ->middleware(['role:mdrrmo_officer,mdrrmo_staff', 'throttle:30,1']);
     Route::get('/flood-reports/validated-feed', [FloodReportController::class, 'validatedFeed'])
         ->middleware(['role:mdrrmo_officer,mdrrmo_staff,rescue_leader', 'throttle:60,1']);
     Route::post('/flood-reports', [FloodReportController::class, 'store'])

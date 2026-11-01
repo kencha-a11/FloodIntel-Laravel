@@ -33,10 +33,12 @@ it('grants the expected abilities to each role', function (UserRole $role, array
     'captain' => [UserRole::BarangayCaptain, [
         UserAbility::SubmitImpactReport,
         UserAbility::SubmitFloodReport,
+        UserAbility::RecordAccessTag,
         UserAbility::ViewOwnBarangay,
     ]],
     'tanod' => [UserRole::BarangayTanod, [
         UserAbility::SubmitFloodReport,
+        UserAbility::RecordAccessTag,
         UserAbility::ViewOwnBarangay,
     ]],
     'rescue' => [UserRole::RescueLeader, [
@@ -56,7 +58,7 @@ it('flags the barangay scoped roles', function (UserRole $role, bool $expected) 
     [UserRole::RescueLeader, false],
 ]);
 
-it('scopes every role that files a report to a barangay', function (UserAbility $ability) {
+it('scopes every role that files a report or records a tag to a barangay', function (UserAbility $ability) {
     $holders = array_filter(
         UserRole::cases(),
         fn (UserRole $role): bool => $role->hasAbility($ability),
@@ -70,6 +72,7 @@ it('scopes every role that files a report to a barangay', function (UserAbility 
 })->with([
     UserAbility::SubmitFloodReport,
     UserAbility::SubmitImpactReport,
+    UserAbility::RecordAccessTag,
 ]);
 
 it('keeps the rescue leader out of the barangay rule because it files nothing', function () {

@@ -474,7 +474,7 @@ it('lists every impact report for the command center', function (UserRole $role)
 ]);
 
 it('registers a gate for every declared ability', function () {
-    expect(UserAbility::cases())->toHaveCount(12);
+    expect(UserAbility::cases())->toHaveCount(13);
 
     foreach (UserAbility::cases() as $ability) {
         expect(Gate::has($ability->value))->toBeTrue();

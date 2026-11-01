@@ -20,6 +20,7 @@ final class RlsScope
      * @var list<string>
      */
     public const PROTECTED = [
+        'access_tags',
         'barangays',
         'flood_events',
         'flood_impact_reports',

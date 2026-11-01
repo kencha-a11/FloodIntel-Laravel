@@ -11,6 +11,7 @@ enum UserAbility: string
     case GenerateProvincialReport = 'generate-provincial-report';
     case SubmitImpactReport = 'submit-impact-report';
     case SubmitFloodReport = 'submit-flood-report';
+    case RecordAccessTag = 'record-access-tag';
     case ViewValidatedReports = 'view-validated-reports';
     case UpdateRescueStatus = 'update-rescue-status';
     case ManageUsers = 'manage-users';
@@ -27,6 +28,7 @@ enum UserAbility: string
             self::GenerateProvincialReport => 'Generate provincial reports',
             self::SubmitImpactReport => 'Submit barangay impact reports',
             self::SubmitFloodReport => 'Submit flood reports',
+            self::RecordAccessTag => 'Record access tags',
             self::ViewValidatedReports => 'View validated reports',
             self::UpdateRescueStatus => 'Update rescue status',
             self::ManageUsers => 'Manage user accounts',

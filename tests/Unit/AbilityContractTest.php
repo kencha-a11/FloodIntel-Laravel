@@ -13,6 +13,7 @@ use App\Enums\UserRole;
 function reservedAbilityOwners(): array
 {
     return [
+        UserAbility::RecordAccessTag->value => 'A11Y-03',
         UserAbility::GenerateProvincialReport->value => 'SITREP-03',
         UserAbility::DispatchAssets->value => 'DISPATCH-02',
         UserAbility::UpdateRescueStatus->value => 'DISPATCH-03',
@@ -73,6 +74,7 @@ it('consumes every ability that is not reserved', function () {
 
 it('reserves exactly the abilities whose owners are in scope', function () {
     expect(array_keys(reservedAbilityOwners()))->toBe([
+        UserAbility::RecordAccessTag->value,
         UserAbility::GenerateProvincialReport->value,
         UserAbility::DispatchAssets->value,
         UserAbility::UpdateRescueStatus->value,
@@ -81,7 +83,7 @@ it('reserves exactly the abilities whose owners are in scope', function () {
     foreach (reservedAbilityOwners() as $value => $owner) {
         $ability = UserAbility::from($value);
 
-        expect($owner)->toMatch('/^[A-Z]+-\d{2}$/')
+        expect($owner)->toMatch('/^[A-Z][A-Z0-9]*-\d{2}$/')
             ->and(abilityConsumers($ability))->toBe(
                 [],
                 "{$value} gained a consumer; reclassify it in the map and remove the reservation",

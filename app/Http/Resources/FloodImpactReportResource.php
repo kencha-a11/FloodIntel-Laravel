@@ -22,6 +22,7 @@ class FloodImpactReportResource extends JsonResource
             'reported_at' => $this->reported_at,
             'status' => $this->status?->value,
             'supersedes_id' => $this->supersedes_id,
+            'client_uuid' => $this->client_uuid,
             'created_at' => $this->created_at,
         ];
     }

@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'user_id', 'barangay_id', 'event_id', 'families', 'individuals',
     'breakdown', 'related_level_report_ids', 'remarks', 'reported_at',
-    'status', 'supersedes_id',
+    'status', 'supersedes_id', 'client_uuid',
 ])]
 #[UsePolicy(FloodImpactReportPolicy::class)]
 class FloodImpactReport extends Model

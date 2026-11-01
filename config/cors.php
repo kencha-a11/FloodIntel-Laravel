@@ -28,7 +28,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => ['X-Report-Count'],
+    'exposed_headers' => ['X-Report-Count', 'Date'],
 
     'max_age' => 0,
 

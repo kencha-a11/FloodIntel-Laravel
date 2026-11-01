@@ -345,6 +345,55 @@ it('returns the stable type value with its label and no other enum form', functi
     }
 });
 
+it('publishes the closed taxonomy with a label and its note rule', function (UserRole $role) {
+    $user = User::factory()->role($role)->create();
+
+    $data = $this->withToken($user->createToken('t')->plainTextToken)
+        ->getJson('/api/access-tags/types')
+        ->assertOk()
+        ->json('data');
+
+    expect(array_column($data, 'value'))
+        ->toBe(array_map(fn (AccessTagType $type): string => $type->value, AccessTagType::cases()));
+
+    foreach (AccessTagType::cases() as $index => $type) {
+        expect($data[$index])->toMatchArray([
+            'value' => $type->value,
+            'label' => $type->label(),
+            'requires_note' => $type->requiresNote(),
+        ]);
+    }
+
+    expect(array_column(array_filter($data, fn (array $option): bool => $option['requires_note']), 'value'))
+        ->toBe([AccessTagType::Other->value]);
+})->with([
+    'officer' => UserRole::MdrrmoOfficer,
+    'staff' => UserRole::MdrrmoStaff,
+    'captain' => UserRole::BarangayCaptain,
+    'tanod' => UserRole::BarangayTanod,
+    'rescue leader' => UserRole::RescueLeader,
+]);
+
+it('publishes the vocabulary and not a single tag', function () {
+    $barangay = Barangay::factory()->create();
+    $tanod = User::factory()->tanod()->forBarangay($barangay)->create();
+    AccessTag::factory()->create([
+        'barangay_id' => $barangay->id,
+        'created_by' => $tanod->id,
+    ]);
+
+    $data = $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->getJson('/api/access-tags/types')
+        ->assertOk()
+        ->json('data');
+
+    expect($data)->toHaveCount(count(AccessTagType::cases()));
+
+    foreach ($data as $option) {
+        expect(array_keys($option))->toBe(['value', 'label', 'requires_note']);
+    }
+});
+
 it('leaves the level-report path untouched', function () {
     Storage::fake('public');
     Http::fake();

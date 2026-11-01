@@ -60,7 +60,10 @@ Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'throttle:auth-sta
         ->middleware('throttle:10,1');
 
     // Reads are scoped in the query (FR-119); filing is the field roles'
-    // ability, enforced by AccessTagPolicy@create (FR-118).
+    // ability, enforced by AccessTagPolicy@create (FR-118). The literal
+    // taxonomy path is declared before the parameter route so it wins.
+    Route::get('/access-tags/types', [AccessTagController::class, 'types'])
+        ->middleware('throttle:30,1');
     Route::get('/access-tags', [AccessTagController::class, 'index']);
     Route::post('/access-tags', [AccessTagController::class, 'store'])
         ->middleware('throttle:10,1');

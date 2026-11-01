@@ -1172,6 +1172,43 @@
         }
       }
     },
+    "/api/access-tags/types": {
+      "get": {
+        "tags": [
+          "Access tags"
+        ],
+        "summary": "Read the access-tag taxonomy",
+        "description": "The closed constraint set, each value with its display label and its note rule (FR-112, NFR-42, D-129). It is the one source of the vocabulary: capture, filters, lists, and any future legend render these labels rather than a copy held by the client. It carries no tag data and no ability gates it, so any authenticated account may read it.",
+        "operationId": "listAccessTagTypes",
+        "x-controller": "App\\Http\\Controllers\\Api\\AccessTagController@types",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every taxonomy value in catalogue order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTagTypeList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/api/access-tags": {
       "get": {
         "tags": [
@@ -3534,6 +3571,40 @@
           "structurally_blocked",
           "other"
         ]
+      },
+      "AccessTagTypeOption": {
+        "type": "object",
+        "required": [
+          "value",
+          "label",
+          "requires_note"
+        ],
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/AccessTagType"
+          },
+          "label": {
+            "type": "string"
+          },
+          "requires_note": {
+            "type": "boolean",
+            "description": "True when the value cannot be understood without a note (FR-112)."
+          }
+        }
+      },
+      "AccessTagTypeList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessTagTypeOption"
+            }
+          }
+        }
       },
       "AccessTag": {
         "type": "object",

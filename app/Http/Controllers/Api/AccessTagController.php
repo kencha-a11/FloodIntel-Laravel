@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\AccessTagType;
 use App\Enums\UserAbility;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Tag\AccessTagFiltersRequest;
 use App\Http\Requests\Tag\StoreAccessTagRequest;
 use App\Http\Resources\AccessTagResource;
+use App\Http\Resources\AccessTagTypeResource;
 use App\Models\AccessTag;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +16,18 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class AccessTagController extends Controller
 {
+    /**
+     * Publish the closed taxonomy, label included (FR-112, NFR-42, D-129).
+     *
+     * The client renders these labels rather than its own copy, so a new
+     * taxonomy value is an enum change and a requirements edit, never a client
+     * release. It carries no tag data, so it needs no ability.
+     */
+    public function types(): AnonymousResourceCollection
+    {
+        return AccessTagTypeResource::collection(collect(AccessTagType::cases()));
+    }
+
     /**
      * List the tags visible to the authenticated user (FR-119, FR-120).
      */

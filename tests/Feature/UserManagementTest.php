@@ -107,6 +107,48 @@ it('lets the officer update a user role and barangay', function () {
         ->and($target->fresh()->barangay_id)->toBe($barangay->id);
 });
 
+it('refuses to clear the barangay of a barangay scoped account', function () {
+    $officer = User::factory()->officer()->create();
+    $captain = User::factory()->captain()->create();
+    $barangay = $captain->barangay_id;
+
+    $this->withToken($officer->createToken('t')->plainTextToken)
+        ->patchJson("/api/users/{$captain->id}", [
+            'barangay_id' => null,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['barangay_id']);
+
+    expect($captain->fresh()->barangay_id)->toBe($barangay);
+});
+
+it('refuses to move a command center account into a scoped role without a barangay', function () {
+    $officer = User::factory()->officer()->create();
+    $staff = User::factory()->staff()->create();
+
+    $this->withToken($officer->createToken('t')->plainTextToken)
+        ->patchJson("/api/users/{$staff->id}", [
+            'role' => UserRole::BarangayCaptain->value,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['barangay_id']);
+
+    expect($staff->fresh()->role)->toBe(UserRole::MdrrmoStaff);
+});
+
+it('updates a command center account that has no barangay', function () {
+    $officer = User::factory()->officer()->create();
+    $staff = User::factory()->staff()->create();
+
+    $this->withToken($officer->createToken('t')->plainTextToken)
+        ->patchJson("/api/users/{$staff->id}", [
+            'first_name' => 'Renamed',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.first_name', 'Renamed')
+        ->assertJsonPath('data.barangay', null);
+});
+
 it('prevents the officer from changing their own role', function () {
     $officer = User::factory()->officer()->create();
 

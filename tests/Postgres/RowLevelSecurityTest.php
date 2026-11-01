@@ -234,6 +234,10 @@ final class RowLevelSecurityTest extends PostgresTestCase
 
     public function test_the_runtime_role_may_write_only_the_decision_columns_of_a_report(): void
     {
+        // The factory's notes are optional, so compare with the stored value
+        // rather than assuming the column is empty.
+        $notes = DB::table('flood_reports')->where('id', $this->reportA->id)->value('notes');
+
         $this->asRuntime($this->officer);
 
         try {
@@ -249,7 +253,7 @@ final class RowLevelSecurityTest extends PostgresTestCase
         }
 
         $this->assertSame('Beacon reading is wrong.', DB::table('flood_reports')->where('id', $this->reportA->id)->value('rejection_reason'));
-        $this->assertNull(DB::table('flood_reports')->where('id', $this->reportA->id)->value('notes'));
+        $this->assertSame($notes, DB::table('flood_reports')->where('id', $this->reportA->id)->value('notes'));
     }
 
     public function test_no_runtime_role_may_delete_a_report(): void

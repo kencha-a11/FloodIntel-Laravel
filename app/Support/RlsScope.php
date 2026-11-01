@@ -25,6 +25,8 @@ final class RlsScope
         'flood_impact_reports',
         'flood_reports',
         'flood_report_status_changes',
+        'situational_reports',
+        'situational_report_inclusions',
     ];
 
     /**

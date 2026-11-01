@@ -526,4 +526,5 @@ it('answers guests with a json 401 on every protected endpoint', function (strin
     ['POST', '/api/users'],
     ['PATCH', '/api/users/1'],
     ['DELETE', '/api/users/1'],
+    ['GET', '/api/roles'],
 ]);

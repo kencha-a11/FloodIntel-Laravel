@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\FloodReportController;
 use App\Http\Controllers\Api\GeocodeController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\RealtimeController;
+use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -71,6 +72,11 @@ Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'throttle:auth-sta
         ->middleware('throttle:30,1');
     Route::post('/realtime/latency', [RealtimeController::class, 'recordLatency'])
         ->middleware('throttle:60,1');
+
+    // FR-103 names ManageUsers as the authority for role management, so the
+    // matrix is gated on the ability rather than the officer route group.
+    Route::get('/roles', [RoleController::class, 'index'])
+        ->middleware(['can:manage-users', 'throttle:30,1']);
 });
 
 Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'role:mdrrmo_officer,mdrrmo_staff', 'throttle:auth-status'])->group(function () {

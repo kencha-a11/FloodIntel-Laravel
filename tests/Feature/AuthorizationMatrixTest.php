@@ -4,6 +4,7 @@ use App\Enums\FloodImpactStatus;
 use App\Enums\FloodReportStatus;
 use App\Enums\UserAbility;
 use App\Enums\UserRole;
+use App\Models\AccessTag;
 use App\Models\Barangay;
 use App\Models\FloodEvent;
 use App\Models\FloodImpactReport;
@@ -498,6 +499,26 @@ it('mirrors every role grant through its gate', function (UserRole $role) {
     'rescue leader' => UserRole::RescueLeader,
 ]);
 
+it('retires a tag only for its recorder or a managing officer', function (UserRole $role, int $status) {
+    $barangay = Barangay::factory()->create();
+    $recorder = User::factory()->tanod()->forBarangay($barangay)->create();
+    $actor = User::factory()->role($role)->forBarangay($barangay)->create();
+    $tag = AccessTag::factory()->create([
+        'barangay_id' => $barangay->id,
+        'created_by' => $recorder->id,
+    ]);
+
+    $this->withToken(authzToken($actor))
+        ->postJson("/api/access-tags/{$tag->id}/retire", ['reason' => 'Route reclassified.'])
+        ->assertStatus($status);
+})->with([
+    'officer' => [UserRole::MdrrmoOfficer, 200],
+    'staff' => [UserRole::MdrrmoStaff, 403],
+    'captain' => [UserRole::BarangayCaptain, 403],
+    'tanod' => [UserRole::BarangayTanod, 403],
+    'rescue leader' => [UserRole::RescueLeader, 403],
+]);
+
 it('answers guests with a json 401 on every protected endpoint', function (string $method, string $uri) {
     $this->json($method, $uri)
         ->assertUnauthorized()
@@ -534,5 +555,6 @@ it('answers guests with a json 401 on every protected endpoint', function (strin
     ['POST', '/api/access-tags'],
     ['GET', '/api/access-tags/1'],
     ['GET', '/api/access-tags/types'],
+    ['POST', '/api/access-tags/1/retire'],
     ['GET', '/api/roles'],
 ]);

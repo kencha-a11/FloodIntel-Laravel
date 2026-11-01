@@ -6,6 +6,7 @@ use App\Enums\AccessTagType;
 use App\Enums\UserAbility;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Tag\AccessTagFiltersRequest;
+use App\Http\Requests\Tag\RetireAccessTagRequest;
 use App\Http\Requests\Tag\StoreAccessTagRequest;
 use App\Http\Resources\AccessTagResource;
 use App\Http\Resources\AccessTagTypeResource;
@@ -42,7 +43,7 @@ class AccessTagController extends Controller
             ->when($request->filled('is_active'), fn (Builder $query) => $query->where('is_active', $request->boolean('is_active')))
             ->when($request->filled('from'), fn (Builder $query) => $query->where('observed_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn (Builder $query) => $query->where('observed_at', '<=', $request->date('to')))
-            ->with(['barangay', 'createdBy'])
+            ->with(['barangay', 'createdBy', 'retiredBy'])
             ->latest('observed_at')
             ->orderByDesc('id')
             ->paginate($request->integer('per_page', 15));
@@ -83,7 +84,7 @@ class AccessTagController extends Controller
             'is_active' => true,
         ]);
 
-        return (new AccessTagResource($tag->load(['barangay', 'createdBy'])))
+        return (new AccessTagResource($tag->load(['barangay', 'createdBy', 'retiredBy'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -95,6 +96,20 @@ class AccessTagController extends Controller
     {
         $this->authorize('view', $accessTag);
 
-        return new AccessTagResource($accessTag->load(['barangay', 'createdBy']));
+        return new AccessTagResource($accessTag->load(['barangay', 'createdBy', 'retiredBy']));
+    }
+
+    /**
+     * Retire a tag without deleting it (FR-121, D-131).
+     *
+     * A second retirement answers with the first one rather than writing a
+     * new instant, reason, or actor, so a retried request cannot rewrite the
+     * event it is retrying.
+     */
+    public function retire(RetireAccessTagRequest $request, AccessTag $accessTag): AccessTagResource
+    {
+        $tag = $accessTag->retire($request->user(), $request->input('reason'));
+
+        return new AccessTagResource($tag->load(['barangay', 'createdBy', 'retiredBy']));
     }
 }

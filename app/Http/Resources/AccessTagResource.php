@@ -36,6 +36,14 @@ class AccessTagResource extends JsonResource
             'address' => $this->address,
             'observed_at' => $this->observed_at,
             'is_active' => (bool) $this->is_active,
+            'retired_at' => $this->retired_at,
+            'retired_reason' => $this->retired_reason,
+            'retired_by' => $this->retiredBy === null ? null : [
+                'id' => $this->retiredBy->id,
+                'first_name' => $this->retiredBy->first_name,
+                'last_name' => $this->retiredBy->last_name,
+                'role' => $this->retiredBy->role->value,
+            ],
             'created_at' => $this->created_at,
         ];
     }

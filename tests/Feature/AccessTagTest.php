@@ -394,6 +394,220 @@ it('publishes the vocabulary and not a single tag', function () {
     }
 });
 
+it('retires a tag in place, keeping the recorded observation', function (UserRole $role) {
+    $barangay = Barangay::factory()->create();
+    $recorder = User::factory()->role($role)->forBarangay($barangay)->create();
+    $observed = now()->subHours(2)->startOfSecond();
+    $tag = AccessTag::factory()->create([
+        'barangay_id' => $barangay->id,
+        'created_by' => $recorder->id,
+        'type' => AccessTagType::NarrowAlley,
+        'observed_at' => $observed,
+        'latitude' => 14.9500000,
+        'longitude' => 120.8300000,
+        'is_active' => true,
+    ]);
+
+    $this->withToken($recorder->createToken('t')->plainTextToken)
+        ->postJson('/api/access-tags/'.$tag->id.'/retire', ['reason' => 'Footpath reopened.'])
+        ->assertOk()
+        ->assertJsonPath('data.id', $tag->id)
+        ->assertJsonPath('data.is_active', false)
+        ->assertJsonPath('data.retired_reason', 'Footpath reopened.')
+        ->assertJsonPath('data.retired_by.id', $recorder->id)
+        ->assertJsonPath('data.retired_by.role', $role->value);
+
+    $stored = AccessTag::findOrFail($tag->id);
+
+    expect(AccessTag::count())->toBe(1)
+        ->and($stored->is_active)->toBeFalse()
+        ->and($stored->retired_at)->not->toBeNull()
+        ->and($stored->retired_reason)->toBe('Footpath reopened.')
+        ->and($stored->retired_by)->toBe($recorder->id)
+        ->and($stored->type)->toBe(AccessTagType::NarrowAlley)
+        ->and($stored->observed_at->timestamp)->toBe($observed->timestamp)
+        ->and($stored->latitude)->toBe('14.9500000')
+        ->and($stored->longitude)->toBe('120.8300000');
+})->with([
+    'captain' => UserRole::BarangayCaptain,
+    'tanod' => UserRole::BarangayTanod,
+]);
+
+it('retires without a reason and refuses one past the cap', function (array $body, ?string $error) {
+    $barangay = Barangay::factory()->create();
+    $tanod = User::factory()->tanod()->forBarangay($barangay)->create();
+    $tag = AccessTag::factory()->create(['barangay_id' => $barangay->id, 'created_by' => $tanod->id]);
+    $token = $tanod->createToken('t')->plainTextToken;
+
+    $response = $this->withToken($token)->postJson('/api/access-tags/'.$tag->id.'/retire', $body);
+
+    if ($error === null) {
+        $response->assertOk()
+            ->assertJsonPath('data.is_active', false)
+            ->assertJsonPath('data.retired_reason', $body['reason'] ?? null);
+    } else {
+        $response->assertStatus(422)->assertJsonValidationErrors($error);
+
+        expect($tag->refresh()->is_active)->toBeTrue();
+    }
+})->with([
+    'no body at all' => [[], null],
+    'a reason at the cap' => [['reason' => str_repeat('a', 255)], null],
+    'a reason past the cap' => [['reason' => str_repeat('a', 256)], 'reason'],
+    'a reason that is not text' => [['reason' => ['reopened']], 'reason'],
+]);
+
+it('answers a second retirement with the first, never the retry', function () {
+    $barangay = Barangay::factory()->create();
+    $recorder = User::factory()->tanod()->forBarangay($barangay)->create();
+    $officer = User::factory()->officer()->create();
+    $tag = AccessTag::factory()->create(['barangay_id' => $barangay->id, 'created_by' => $recorder->id]);
+    $token = $recorder->createToken('t')->plainTextToken;
+
+    $first = $this->withToken($token)
+        ->postJson('/api/access-tags/'.$tag->id.'/retire', ['reason' => 'Footpath reopened.'])
+        ->assertOk()
+        ->json('data');
+
+    $this->travel(1)->hours();
+
+    $second = $this->withToken($officer->createToken('t')->plainTextToken)
+        ->postJson('/api/access-tags/'.$tag->id.'/retire', ['reason' => 'Second attempt.'])
+        ->assertOk()
+        ->json('data');
+
+    expect($second['retired_at'])->toBe($first['retired_at'])
+        ->and($second['retired_reason'])->toBe('Footpath reopened.')
+        ->and($second['retired_by']['id'])->toBe($recorder->id)
+        ->and($second['is_active'])->toBeFalse();
+});
+
+it('refuses retirement to an account that neither recorded the tag nor manages users', function (UserRole $role, bool $sameBarangay) {
+    $home = Barangay::factory()->create();
+    $recorder = User::factory()->tanod()->forBarangay($home)->create();
+    $outsider = User::factory()->role($role)->create([
+        'barangay_id' => $sameBarangay ? $home->id : Barangay::factory()->create()->id,
+    ]);
+    $tag = AccessTag::factory()->create(['barangay_id' => $home->id, 'created_by' => $recorder->id]);
+
+    $this->withToken($outsider->createToken('t')->plainTextToken)
+        ->postJson('/api/access-tags/'.$tag->id.'/retire', ['reason' => 'Not mine.'])
+        ->assertForbidden();
+
+    $stored = AccessTag::findOrFail($tag->id);
+
+    expect($stored->is_active)->toBeTrue()
+        ->and($stored->retired_at)->toBeNull();
+})->with([
+    'a tanod of another barangay' => [UserRole::BarangayTanod, false],
+    'a captain of another barangay' => [UserRole::BarangayCaptain, false],
+    'a tanod of the same barangay' => [UserRole::BarangayTanod, true],
+    'a captain of the same barangay' => [UserRole::BarangayCaptain, true],
+    'a command-center staff account' => [UserRole::MdrrmoStaff, false],
+    'a rescue leader' => [UserRole::RescueLeader, false],
+]);
+
+it('lets a managing officer retire a tag it did not record and names that officer', function () {
+    $barangay = Barangay::factory()->create();
+    $recorder = User::factory()->tanod()->forBarangay($barangay)->create();
+    $officer = User::factory()->officer()->create();
+    $tag = AccessTag::factory()->create(['barangay_id' => $barangay->id, 'created_by' => $recorder->id]);
+
+    $this->withToken($officer->createToken('t')->plainTextToken)
+        ->postJson('/api/access-tags/'.$tag->id.'/retire', ['reason' => 'Route reclassified.'])
+        ->assertOk()
+        ->assertJsonPath('data.recorded_by.id', $recorder->id)
+        ->assertJsonPath('data.retired_by.id', $officer->id)
+        ->assertJsonPath('data.retired_by.role', UserRole::MdrrmoOfficer->value);
+});
+
+it('lets the list separate retired tags from active ones', function () {
+    $barangay = Barangay::factory()->create();
+    $recorder = User::factory()->tanod()->forBarangay($barangay)->create();
+    $officer = User::factory()->officer()->create();
+    $active = AccessTag::factory()->create(['barangay_id' => $barangay->id, 'created_by' => $recorder->id]);
+    $retired = AccessTag::factory()->create(['barangay_id' => $barangay->id, 'created_by' => $recorder->id]);
+    $token = $officer->createToken('t')->plainTextToken;
+
+    $this->withToken($token)
+        ->postJson('/api/access-tags/'.$retired->id.'/retire', ['reason' => 'Footpath reopened.'])
+        ->assertOk();
+
+    $listed = function (array $query) use ($token): array {
+        return collect(
+            $this->withToken($token)
+                ->getJson('/api/access-tags?'.http_build_query($query))
+                ->assertOk()
+                ->json('data'),
+        )->pluck('id')->sort()->values()->all();
+    };
+
+    $retiredOnly = $this->withToken($token)
+        ->getJson('/api/access-tags?is_active=0')
+        ->assertOk()
+        ->json('data');
+
+    expect($listed(['is_active' => 1]))->toBe([$active->id])
+        ->and($listed(['is_active' => 0]))->toBe([$retired->id])
+        ->and($retiredOnly[0]['retired_at'])->not->toBeNull()
+        ->and($retiredOnly[0]['retired_reason'])->toBe('Footpath reopened.');
+});
+
+it('offers no route that deletes a tag', function () {
+    $barangay = Barangay::factory()->create();
+    $tanod = User::factory()->tanod()->forBarangay($barangay)->create();
+    $tag = AccessTag::factory()->create(['barangay_id' => $barangay->id, 'created_by' => $tanod->id]);
+
+    $this->withToken($tanod->createToken('t')->plainTextToken)
+        ->deleteJson('/api/access-tags/'.$tag->id)
+        ->assertStatus(405);
+
+    expect(AccessTag::count())->toBe(1);
+});
+
+it('keeps the observation immutable and a retirement final at the model', function () {
+    $tag = AccessTag::factory()->create(['observed_at' => now()->subHour()]);
+
+    expect(fn () => $tag->update(['observed_at' => now()->subMinute()]))
+        ->toThrow(LogicException::class, 'The recorded observation is immutable.');
+
+    expect(fn () => $tag->update(['latitude' => 14.1]))
+        ->toThrow(LogicException::class, 'The recorded observation is immutable.');
+
+    $tag = $tag->fresh();
+    $recorder = User::findOrFail($tag->created_by);
+    $tag->retire($recorder, 'Footpath reopened.');
+
+    $retired = $tag->fresh();
+
+    expect($retired->is_active)->toBeFalse();
+
+    expect(fn () => $retired->update(['retired_reason' => 'Rewritten.']))
+        ->toThrow(LogicException::class, 'A tag is retired once.');
+
+    expect(fn () => $retired->update(['is_active' => true]))
+        ->toThrow(LogicException::class, 'A tag is retired once.');
+
+    expect($tag->fresh()->retired_reason)->toBe('Footpath reopened.');
+});
+
+it('leaves a second model retirement as a no-op that keeps the recorded event', function () {
+    $tag = AccessTag::factory()->create();
+    $recorder = User::findOrFail($tag->created_by);
+    $officer = User::factory()->officer()->create();
+
+    $tag->retire($recorder, 'First.');
+
+    $first = $tag->fresh();
+    $stamp = $first->retired_at;
+
+    $this->travel(1)->hours();
+
+    expect($first->retire($officer, 'Second.')->retired_reason)->toBe('First.')
+        ->and($first->retired_at->timestamp)->toBe($stamp->timestamp)
+        ->and($first->retired_by)->toBe($recorder->id);
+});
+
 it('leaves the level-report path untouched', function () {
     Storage::fake('public');
     Http::fake();

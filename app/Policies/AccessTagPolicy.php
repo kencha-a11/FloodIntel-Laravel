@@ -35,4 +35,16 @@ class AccessTagPolicy
     {
         return $user->hasAbility(UserAbility::RecordAccessTag);
     }
+
+    /**
+     * Determine whether the user can retire a tag (FR-118, FR-121, D-131).
+     *
+     * Retirement is the recording account's own act or a `ManageUsers`
+     * holder's — not a second ability and not the wider barangay read.
+     */
+    public function retire(User $user, AccessTag $accessTag): bool
+    {
+        return $accessTag->created_by === $user->id
+            || $user->hasAbility(UserAbility::ManageUsers);
+    }
 }

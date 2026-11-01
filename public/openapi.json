@@ -1405,6 +1405,73 @@
         }
       }
     },
+    "/api/access-tags/{accessTag}/retire": {
+      "post": {
+        "tags": [
+          "Access tags"
+        ],
+        "summary": "Retire an access tag",
+        "description": "Retirement is the recording account's own act or a `ManageUsers` holder's (FR-118); it is not a second ability. The tag is marked inactive with the instant, the optional reason, and the retiring account, and it is never deleted (FR-121). A second retirement answers with the first one rather than writing a new instant or reason, so a retried request cannot rewrite the event. The recorded observation is untouched: nothing in this body can change the place, the capture instant, or the coordinates (FR-114).",
+        "operationId": "retireAccessTag",
+        "x-controller": "App\\Http\\Controllers\\Api\\AccessTagController@retire",
+        "x-request": "App\\Http\\Requests\\Tag\\RetireAccessTagRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "accessTag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetireAccessTagInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The retired tag, or the first retirement when it was already retired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTag"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/api/geocode/reverse": {
       "get": {
         "tags": [
@@ -3623,6 +3690,9 @@
           "address",
           "observed_at",
           "is_active",
+          "retired_at",
+          "retired_reason",
+          "retired_by",
           "created_at"
         ],
         "properties": {
@@ -3713,6 +3783,48 @@
             "type": "boolean",
             "description": "False once retired; a retired tag stays readable (FR-121)."
           },
+          "retired_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the tag was retired; null while it is active (FR-121)."
+          },
+          "retired_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The optional reason given at retirement (FR-121)."
+          },
+          "retired_by": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The account that retired the tag; null while it is active.",
+            "required": [
+              "id",
+              "first_name",
+              "last_name",
+              "role"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "first_name": {
+                "type": "string"
+              },
+              "last_name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            }
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -3763,6 +3875,17 @@
             "format": "date-time"
           }
         }
+      },
+      "RetireAccessTagInput": {
+        "type": "object",
+        "description": "The retirement body. Every field is optional: FR-121 makes the reason optional, and the instant and the retiring account come from the server (D-131).",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "additionalProperties": false
       },
       "AccessTagPage": {
         "type": "object",

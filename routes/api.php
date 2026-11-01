@@ -68,6 +68,10 @@ Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'throttle:auth-sta
     Route::post('/access-tags', [AccessTagController::class, 'store'])
         ->middleware('throttle:10,1');
     Route::get('/access-tags/{accessTag}', [AccessTagController::class, 'show']);
+    // Retirement is the recorder's own act or a ManageUsers holder's (FR-118,
+    // FR-121); the policy decides, so the route needs no role group.
+    Route::post('/access-tags/{accessTag}/retire', [AccessTagController::class, 'retire'])
+        ->middleware('throttle:10,1');
 
     Route::get('/geocode/reverse', [GeocodeController::class, 'reverse'])
         ->middleware('throttle:30,1');

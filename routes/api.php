@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\GeocodeController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\RealtimeController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,7 @@ Route::get('/email/verify', [AuthController::class, 'verificationNotice'])
 
 Route::middleware(['auth:sanctum', 'db.identity', 'throttle:auth-status'])->group(function () {
     Route::get('/user', [AuthController::class, 'me']);
+    Route::get('/sessions', [SessionController::class, 'index']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::post('/email/verification-notification', [AuthController::class, 'resendVerification'])

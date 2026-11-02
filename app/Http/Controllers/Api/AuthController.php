@@ -13,6 +13,7 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -25,7 +26,10 @@ class AuthController extends Controller
         try {
             $request->authenticate();
         } catch (ValidationException $exception) {
-            LoginEvent::query()->create([
+            // The query builder issues no RETURNING, so the SELECT policy
+            // (user_id = app_user_id()) does not apply to this write: a failed
+            // attempt is recorded before any identity exists.
+            DB::table('login_events')->insert([
                 'outcome' => LoginEvent::OUTCOME_FAILED,
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
@@ -42,7 +46,10 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token');
 
-        LoginEvent::query()->create([
+        // The query builder issues no RETURNING, so the SELECT policy does not
+        // apply to this write. The row is still written before the request
+        // identity is set, so the INSERT policy is the permissive one.
+        DB::table('login_events')->insert([
             'user_id' => $user->getKey(),
             'personal_access_token_id' => $token->accessToken->getKey(),
             'outcome' => LoginEvent::OUTCOME_SUCCESS,

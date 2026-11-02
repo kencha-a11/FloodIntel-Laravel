@@ -26,6 +26,7 @@ final class RlsScope
         'flood_impact_reports',
         'flood_reports',
         'flood_report_status_changes',
+        'login_events',
         'situational_reports',
         'situational_report_inclusions',
     ];
@@ -52,11 +53,6 @@ final class RlsScope
         // rows are written by the measuring endpoint and read only by the
         // officer-gated latency summary (D-67).
         'realtime_latency_samples',
-        // Login attempts are written before an authenticated identity exists:
-        // a failed attempt has no user, so row-level security cannot key on
-        // app.user_id. Append-only, with no read surface yet; AUTH-17 owns the
-        // read and the protection decision when that surface lands.
-        'login_events',
         // Created by the postgis extension, not by this application: a shared,
         // non-tenant SRID reference table (FR-72, D-99).
         'spatial_ref_sys',

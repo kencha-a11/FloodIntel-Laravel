@@ -354,6 +354,86 @@
         }
       }
     },
+    "/api/sessions": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "List the caller's active login sessions",
+        "description": "A session is a personal access token issued by `POST /api/login` that has a successful login event and has not expired. The plain-text token is never returned; `is_current` marks the token that authorized this request.",
+        "operationId": "listSessions",
+        "x-controller": "App\\Http\\Controllers\\Api\\SessionController@index",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's login sessions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name",
+                      "ip_address",
+                      "user_agent",
+                      "logged_in_at",
+                      "last_used_at",
+                      "is_current"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "ip_address": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "user_agent": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "logged_in_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "last_used_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "is_current": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/api/logout": {
       "post": {
         "tags": [

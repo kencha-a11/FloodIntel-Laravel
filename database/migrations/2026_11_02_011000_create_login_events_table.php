@@ -34,6 +34,14 @@ return new class extends Migration
         // exists, and reads it back for the session list (AUTH-17). The table
         // stays append-only: select and insert only, no update or delete.
         $connection->unprepared(<<<'SQL'
+ALTER TABLE login_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY login_events_select ON login_events FOR SELECT TO app_runtime
+USING (user_id = app_user_id());
+
+CREATE POLICY login_events_insert ON login_events FOR INSERT TO app_runtime
+WITH CHECK (true);
+
 GRANT SELECT, INSERT ON TABLE login_events TO app_runtime;
 GRANT USAGE, SELECT ON SEQUENCE login_events_id_seq TO app_runtime;
 SQL);
@@ -49,7 +57,12 @@ SQL);
         $connection = Schema::getConnection();
 
         if ($connection->getDriverName() === 'pgsql') {
-            $connection->statement('revoke all on table login_events from app_runtime');
+            $connection->unprepared(<<<'SQL'
+DROP POLICY IF EXISTS login_events_insert ON login_events;
+DROP POLICY IF EXISTS login_events_select ON login_events;
+ALTER TABLE login_events DISABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE login_events FROM app_runtime;
+SQL);
         }
 
         Schema::dropIfExists('login_events');

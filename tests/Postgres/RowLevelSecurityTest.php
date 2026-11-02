@@ -523,6 +523,72 @@ final class RowLevelSecurityTest extends PostgresTestCase
         }
     }
 
+    public function test_login_event_rows_are_isolated_by_user_for_auth_17(): void
+    {
+        DB::table('login_events')->insert([
+            [
+                'user_id' => $this->captainA->id,
+                'personal_access_token_id' => null,
+                'outcome' => 'success',
+                'ip_address' => '1.1.1.1',
+                'user_agent' => 'ua-a',
+                'created_at' => now(),
+            ],
+            [
+                'user_id' => $this->tanodB->id,
+                'personal_access_token_id' => null,
+                'outcome' => 'success',
+                'ip_address' => '2.2.2.2',
+                'user_agent' => 'ua-b',
+                'created_at' => now(),
+            ],
+            [
+                'user_id' => null,
+                'personal_access_token_id' => null,
+                'outcome' => 'failed',
+                'ip_address' => '3.3.3.3',
+                'user_agent' => 'ua-failed',
+                'created_at' => now(),
+            ],
+        ]);
+
+        $this->asRuntime($this->captainA);
+
+        try {
+            $this->assertSame(1, DB::table('login_events')->count());
+            $this->assertSame($this->captainA->id, (int) DB::table('login_events')->value('user_id'));
+        } finally {
+            $this->asOwner();
+        }
+
+        $this->asRuntime($this->tanodB);
+
+        try {
+            $this->assertSame(1, DB::table('login_events')->count());
+            $this->assertSame($this->tanodB->id, (int) DB::table('login_events')->value('user_id'));
+        } finally {
+            $this->asOwner();
+        }
+
+        $this->asRuntime();
+
+        try {
+            $this->assertSame(0, DB::table('login_events')->count());
+
+            // The login path writes before an identity exists.
+            DB::table('login_events')->insert([
+                'user_id' => null,
+                'personal_access_token_id' => null,
+                'outcome' => 'failed',
+                'ip_address' => '4.4.4.4',
+                'user_agent' => 'ua-insert',
+                'created_at' => now(),
+            ]);
+        } finally {
+            $this->asOwner();
+        }
+    }
+
     private function asRuntime(?User $user = null): void
     {
         DB::statement('set local role app_runtime');

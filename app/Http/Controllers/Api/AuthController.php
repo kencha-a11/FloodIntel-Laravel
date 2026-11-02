@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
+use App\Models\LoginEvent;
 use App\Models\User;
 use App\Support\DatabaseIdentity;
 use App\Support\MailAvailability;
@@ -12,6 +13,7 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -20,7 +22,17 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        $request->authenticate();
+        try {
+            $request->authenticate();
+        } catch (ValidationException $exception) {
+            LoginEvent::query()->create([
+                'outcome' => LoginEvent::OUTCOME_FAILED,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            throw $exception;
+        }
 
         $user = $request->user();
 
@@ -28,9 +40,19 @@ class AuthController extends Controller
         // runs under the identity the request middleware has not set yet.
         DatabaseIdentity::runAs($user->getKey(), fn () => $user->load('barangay'));
 
+        $token = $user->createToken('auth_token');
+
+        LoginEvent::query()->create([
+            'user_id' => $user->getKey(),
+            'personal_access_token_id' => $token->accessToken->getKey(),
+            'outcome' => LoginEvent::OUTCOME_SUCCESS,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json([
             'user' => new UserResource($user),
-            'token' => $user->createToken('auth_token')->plainTextToken,
+            'token' => $token->plainTextToken,
         ]);
     }
 

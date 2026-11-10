@@ -44,6 +44,39 @@ it('creates a token when storing with valid data', function () {
     ]);
 });
 
+it('expires an api-created token after a fixed week despite intervening requests', function () {
+    $issuedAt = now()->startOfSecond();
+    $this->travelTo($issuedAt);
+    $user = User::factory()->create();
+
+    $response = $this->withToken($user->createToken('request_token')->plainTextToken)
+        ->postJson('/api/tokens', [
+            'name' => 'weekly_token',
+            'expires_at' => $issuedAt->copy()->addYear()->toIso8601String(),
+        ])->assertCreated();
+    $token = $response->json('token');
+    $issuedToken = $user->tokens()->findOrFail($response->json('data.id'));
+    $expiresAt = $issuedAt->copy()->addWeek();
+
+    expect($issuedToken->expires_at?->equalTo($expiresAt))->toBeTrue();
+
+    auth()->forgetGuards();
+    auth('web')->logout();
+    $this->withToken($token)->getJson('/api/user')->assertOk();
+
+    $this->travelTo($expiresAt->copy()->subSecond());
+    auth()->forgetGuards();
+    auth('web')->logout();
+    $this->withToken($token)->getJson('/api/user')->assertOk();
+
+    expect($issuedToken->fresh()->expires_at->equalTo($expiresAt))->toBeTrue();
+
+    $this->travelTo($expiresAt->copy()->addSecond());
+    auth()->forgetGuards();
+    auth('web')->logout();
+    $this->withToken($token)->getJson('/api/user')->assertUnauthorized();
+});
+
 it('creates a token with all abilities when no abilities are provided', function () {
     $user = User::factory()->create();
 

@@ -27,6 +27,7 @@ class TokenController extends Controller
         $token = $request->user()->createToken(
             $request->validated('name'),
             $request->validated('abilities', ['*']),
+            now()->addWeek(),
         );
 
         return response()->json([

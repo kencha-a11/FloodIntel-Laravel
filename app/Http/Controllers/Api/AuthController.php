@@ -44,7 +44,7 @@ class AuthController extends Controller
         // runs under the identity the request middleware has not set yet.
         DatabaseIdentity::runAs($user->getKey(), fn () => $user->load('barangay'));
 
-        $token = $user->createToken('auth_token');
+        $token = $user->createToken('auth_token', ['*'], now()->addWeek());
 
         // The query builder issues no RETURNING, so the SELECT policy does not
         // apply to this write. The row is still written before the request

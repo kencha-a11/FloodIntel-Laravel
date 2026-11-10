@@ -34,6 +34,37 @@ it('returns a token when logging in with valid credentials', function () {
         ->assertJsonPath('user.role', $user->role->value);
 });
 
+it('expires a login token after a fixed week despite intervening requests', function () {
+    $issuedAt = now()->startOfSecond();
+    $this->travelTo($issuedAt);
+    $user = User::factory()->create();
+
+    $response = $this->postJson('/api/login', [
+        'login' => $user->email,
+        'password' => 'password',
+    ])->assertOk();
+    $token = $response->json('token');
+    $expiresAt = $issuedAt->copy()->addWeek();
+
+    expect($user->tokens()->sole()->expires_at?->equalTo($expiresAt))->toBeTrue();
+
+    auth()->forgetGuards();
+    auth('web')->logout();
+    $this->withToken($token)->getJson('/api/user')->assertOk();
+
+    $this->travelTo($expiresAt->copy()->subSecond());
+    auth()->forgetGuards();
+    auth('web')->logout();
+    $this->withToken($token)->getJson('/api/user')->assertOk();
+
+    expect($user->tokens()->sole()->expires_at->equalTo($expiresAt))->toBeTrue();
+
+    $this->travelTo($expiresAt->copy()->addSecond());
+    auth()->forgetGuards();
+    auth('web')->logout();
+    $this->withToken($token)->getJson('/api/user')->assertUnauthorized();
+});
+
 it('returns a token when logging in with a valid contact number', function () {
     $user = User::factory()->create();
 

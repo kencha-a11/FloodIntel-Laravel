@@ -7,14 +7,24 @@
 #      The migration set grants it the tables and sequences it needs (D-61). If the
 #      role is missing, the migration creates it as NOLOGIN and the app cannot
 #      connect until a password is set.
-#   2. In Supabase: Connect -> Postgres -> Session mode, copy the app_runtime
-#      connection string. In Render: set DB_URL with that string and mark it a Secret.
-#      The application always connects as app_runtime.
-#   3. In Render: set DB_OWNER_URL with the postgres owner connection string and mark
-#      it a Secret. Only docker/entrypoint.sh reads it, to run migrations; the
-#      running application never uses it. Owner connections bypass RLS (D-08, D-61).
-#   Session mode (port 6543) is required: the direct connection (5432) needs IPv6,
-#   which Render containers do not have.
+#   2. In Supabase: Connect -> Postgres -> the session-mode pooler, copy the
+#      app_runtime connection string. In Render: set DB_URL with that string and
+#      mark it a Secret. The application always connects as app_runtime.
+#      The string uses the pooler host on port 5432:
+#        postgresql://app_runtime:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+#   3. In Render: set DB_OWNER_URL with the postgres owner connection string for the
+#      SAME project and mark it a Secret. Only docker/entrypoint.sh reads it, to run
+#      migrations; the running application never uses it. Owner connections bypass RLS
+#      (D-08, D-61). Its shape:
+#        postgresql://postgres:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+#      Both strings must address the same project: the boot migrates the project
+#      DB_OWNER_URL names, and the application reads the project DB_URL names.
+#   Port 6543 is the transaction-mode pooler and is not usable here: it does not
+#   support prepared statements, and the application does not emulate them
+#   (config/database.php sets no options), so every query fails. The direct
+#   connection (db.<ref>.supabase.co on 5432) is unusable for a different reason:
+#   it needs IPv6, which Render containers do not have. The pooler host on 5432 is
+#   IPv4 and needs nothing (D-143).
 #   4. The migration set also creates app_maintenance (NOLOGIN, no credential) and
 #      enables RLS on flood_reports, flood_impact_reports, flood_events, and
 #      barangays (D-97, D-98). app_runtime is a member of app_maintenance only so

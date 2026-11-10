@@ -86,7 +86,12 @@ it('keeps the declared ladder below the PHP and nginx limits', function () {
     expect($photo)->toBeLessThan($request)
         ->and($upload)->toBeGreaterThanOrEqual($request)
         ->and($post)->toBeGreaterThan($request)
-        ->and($edge)->toBeGreaterThan($post);
+        // PHP discards a body over post_max_size before the application can
+        // refuse it, so the edge must not admit more than PHP accepts. With
+        // the edge above PHP, a body in that gap answered 200 with an empty
+        // body and an oversized upload looked accepted (DP-05).
+        ->and($edge)->toBeGreaterThanOrEqual($post)
+        ->and($edge)->toBeGreaterThan($request);
 });
 
 it('keeps the photo rule and the client ceiling in step', function () {

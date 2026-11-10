@@ -34,8 +34,19 @@ services:
         value: production
       - key: APP_DEBUG
         value: "false"
+      - key: APP_NAME
+        value: FloodIntel
       - key: APP_KEY
         generateValue: true
+      # The edge's own address ranges are not published by the host, so the
+      # deployment trusts private address space only: the edge reaches the
+      # container from inside the provider's network, and a request arriving
+      # from a public address is never trusted, so a client-supplied
+      # X-Forwarded-For cannot spoof the address the login limiter keys on.
+      # A wildcard is never correct. If the deploy log shows a public source
+      # address, replace this value with the address the log shows.
+      - key: TRUSTED_PROXIES
+        value: PRIVATE_SUBNETS
       - key: APP_URL
         value: https://floodintel-laravel.onrender.com
       - key: FRONTEND_URL
@@ -68,6 +79,8 @@ services:
         value: smtp-relay.brevo.com
       - key: MAIL_PORT
         value: "587"
+      - key: MAIL_SCHEME
+        value: smtp
       - key: MAIL_USERNAME
         value: abcfb2001@smtp-brevo.com
       - key: MAIL_PASSWORD

@@ -1,9 +1,7 @@
 <?php
 
+use App\Http\Controllers\DiagnosticsController;
 use App\Http\Controllers\Api\AccessTagController;
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\BarangayController;
-use App\Http\Controllers\Api\FloodEventController;
 use App\Http\Controllers\Api\FloodImpactReportController;
 use App\Http\Controllers\Api\FloodReportController;
 use App\Http\Controllers\Api\GeocodeController;
@@ -14,6 +12,23 @@ use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+# Public diagnostics (no login required)
+|--------------------------------------------------------------------------
+|
+| These routes live in api.php so they bypass StartSession middleware
+| (which reads the sessions DB table and 500s when the DB connection is
+| down). Access to /diagnostics/logs is gated by DIAGNOSTICS_KEY;
+| /diagnostics/logs-nokey is temporary and has NO auth — remove after use.
+|
+*/
+
+Route::get('/diagnostics/logs', [DiagnosticsController::class, 'logs'])->name('diagnostics.logs');
+
+// TEMPORARY: no-key log view — remove after debugging
+Route::get('/diagnostics/logs-nokey', [DiagnosticsController::class, 'logsNoKey'])->name('diagnostics.logs-nokey');
 
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 

@@ -50,6 +50,22 @@ GRANT EXECUTE ON FUNCTION app_user_role() TO app_runtime;
 GRANT EXECUTE ON FUNCTION app_user_barangay() TO app_runtime;
 SQL);
 
+        // Disable RLS on tables that should be unprotected first (tables that
+        // were created after this migration was originally written may have
+        // had RLS enabled by default or by a previous incomplete run).
+        $connection->unprepared(<<<'SQL'
+ALTER TABLE migrations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE password_reset_tokens DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE cache DISABLE ROW LEVEL SECURITY;
+ALTER TABLE cache_locks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE jobs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE job_batches DISABLE ROW LEVEL SECURITY;
+ALTER TABLE failed_jobs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE personal_access_tokens DISABLE ROW LEVEL SECURITY;
+SQL);
+
         $connection->unprepared(<<<'SQL'
 ALTER TABLE flood_reports ENABLE ROW LEVEL SECURITY;
 

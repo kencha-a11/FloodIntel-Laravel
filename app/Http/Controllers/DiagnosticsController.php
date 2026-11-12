@@ -20,7 +20,7 @@ class DiagnosticsController extends Controller
      * Access is gated by a secret query key (`?key=...`) so the endpoint is
      * not publicly guessable. No session or Sanctum token is required.
      */
-    public function logs(Request $request): Response
+    public function logs(Request $request)
     {
         try {
             return $this->handleLogs($request);
@@ -31,7 +31,7 @@ class DiagnosticsController extends Controller
         }
     }
 
-    private function handleLogs(Request $request): Response
+    private function handleLogs(Request $request)
     {
         $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
 
@@ -85,7 +85,7 @@ class DiagnosticsController extends Controller
     /**
      * TEMPORARY: Show logs without a secret key. Remove this after debugging.
      */
-    public function logsNoKey(Request $request): Response
+    public function logsNoKey(Request $request)
     {
         try {
             $logPath = storage_path('logs/laravel.log');

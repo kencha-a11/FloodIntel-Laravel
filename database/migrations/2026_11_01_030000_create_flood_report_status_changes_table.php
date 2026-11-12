@@ -32,6 +32,8 @@ return new class extends Migration
             $table->index(['flood_report_id', 'created_at']);
         });
 
+        $connection = Schema::getConnection();
+
         if ($connection->getDriverName() !== 'pgsql') {
             return;
         }

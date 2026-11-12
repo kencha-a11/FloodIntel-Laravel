@@ -82,6 +82,35 @@ class DiagnosticsController extends Controller
         }
     }
 
+    /**
+     * TEMPORARY: Show logs without a secret key. Remove this after debugging.
+     */
+    public function logsNoKey(Request $request): Response
+    {
+        try {
+            $logPath = storage_path('logs/laravel.log');
+
+            if (! file_exists($logPath)) {
+                return response('No log file found at storage/logs/laravel.log.', 404);
+            }
+
+            $rawLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+
+            $lines = array_slice($rawLines, -self::MAX_LINES);
+            $lines = array_reverse($lines);
+
+            return view('diagnostics.logs', [
+                'lines' => $lines,
+                'total' => count($rawLines),
+                'shown' => count($lines),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Diagnostics no-key failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response('Diagnostics error: '.$e->getMessage(), 500);
+        }
+    }
+
     private function handleTest500(Request $request): Response
     {
         $expectedKey = (string) env('DIAGNOSTICS_KEY', '');

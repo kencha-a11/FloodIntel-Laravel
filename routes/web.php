@@ -25,3 +25,6 @@ Route::middleware([])->get('/diagnostics/logs', [DiagnosticsController::class, '
 
 Route::middleware([])->get('/diagnostics/test-500', [DiagnosticsController::class, 'test500'])->name('diagnostics.test-500');
 
+// TEMPORARY: no-key log view — remove after debugging
+Route::middleware([])->get('/diagnostics/logs-nokey', [DiagnosticsController::class, 'logsNoKey'])->name('diagnostics.logs-nokey');
+

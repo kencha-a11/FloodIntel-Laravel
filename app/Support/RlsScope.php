@@ -27,6 +27,7 @@ final class RlsScope
         'flood_reports',
         'flood_report_status_changes',
         'login_events',
+        'realtime_latency_samples',
         'situational_reports',
         'situational_report_inclusions',
     ];

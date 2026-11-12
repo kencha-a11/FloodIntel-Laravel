@@ -19,11 +19,6 @@ return new class extends Migration
 
             $table->index('created_at');
         });
-
-        // Disable RLS on this table since it's in the RlsScope UNPROTECTED list
-        // (framework telemetry with no tenant fields beyond report_id)
-        $connection = Schema::getConnection();
-        $connection->unprepared('ALTER TABLE realtime_latency_samples DISABLE ROW LEVEL SECURITY');
     }
 
     public function down(): void

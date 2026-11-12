@@ -71,7 +71,7 @@ class DiagnosticsController extends Controller
      * Deliberately throw an exception so you can verify that 500 errors are
      * being written to the log file.
      */
-    public function test500(Request $request): Response
+    public function test500(Request $request)
     {
         try {
             return $this->handleTest500($request);
@@ -111,7 +111,32 @@ class DiagnosticsController extends Controller
         }
     }
 
-    private function handleTest500(Request $request): Response
+    /**
+     * TEMPORARY: Clear the application log file. Remove this after debugging.
+     */
+    public function clearLogs(Request $request)
+    {
+        try {
+            $logPath = storage_path('logs/laravel.log');
+
+            if (! file_exists($logPath)) {
+                return response('No log file found.', 404);
+            }
+
+            // Truncate the log file to zero bytes.
+            file_put_contents($logPath, '');
+
+            Log::warning('Diagnostics clear-logs triggered manually.');
+
+            return response('', 204);
+        } catch (\Throwable $e) {
+            Log::error('Diagnostics clear-logs failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response('Diagnostics error: '.$e->getMessage(), 500);
+        }
+    }
+
+    private function handleTest500(Request $request)
     {
         $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
 

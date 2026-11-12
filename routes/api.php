@@ -1,7 +1,9 @@
 <?php
 
-use App\Http\Controllers\DiagnosticsController;
 use App\Http\Controllers\Api\AccessTagController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BarangayController;
+use App\Http\Controllers\Api\FloodEventController;
 use App\Http\Controllers\Api\FloodImpactReportController;
 use App\Http\Controllers\Api\FloodReportController;
 use App\Http\Controllers\Api\GeocodeController;
@@ -11,6 +13,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\DiagnosticsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +32,8 @@ Route::get('/diagnostics/logs', [DiagnosticsController::class, 'logs'])->name('d
 
 // TEMPORARY: no-key log view — remove after debugging
 Route::get('/diagnostics/logs-nokey', [DiagnosticsController::class, 'logsNoKey'])->name('diagnostics.logs-nokey');
+
+Route::post('/diagnostics/logs-clear', [DiagnosticsController::class, 'clearLogs'])->name('diagnostics.logs-clear');
 
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 

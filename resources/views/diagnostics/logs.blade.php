@@ -110,6 +110,61 @@
             font-size: 0.875rem;
             margin-bottom: 16px;
         }
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #334155;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn:hover {
+            border-color: #94a3b8;
+            background: #f8fafc;
+        }
+        .btn:active {
+            transform: translateY(1px);
+        }
+        .btn-copy { border-color: #2563eb; color: #2563eb; }
+        .btn-copy:hover { background: #eff6ff; }
+        .btn-clear { border-color: #dc2626; color: #dc2626; }
+        .btn-clear:hover { background: #fef2f2; }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 0.875rem;
+            font-weight: 500;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .toast.show { opacity: 1; }
+        .toast-success { background: #16a34a; }
+        .toast-danger { background: #dc2626; }
+        .toast-info { background: #2563eb; }
         a {
             color: #2563eb;
             text-decoration: none;
@@ -126,6 +181,8 @@
             <span class="badge">Diagnostics</span>
         </header>
 
+        <div id="toast" class="toast"></div>
+
         @if (isset($message))
             <div class="empty">{{ $message }}</div>
         @else
@@ -138,6 +195,11 @@
                 <span><strong>{{ $shown }}</strong> of <strong>{{ $total }}</strong> total log lines shown (most recent first).</span>
             </div>
 
+            <div class="actions">
+                <button type="button" class="btn btn-copy" id="btnCopy" onclick="copyLogs()">📋 Copy all logs</button>
+                <button type="button" class="btn btn-clear" id="btnClear" onclick="confirmClearLogs()">🗑️ Clear logs</button>
+            </div>
+
             <table>
                 <thead>
                     <tr>
@@ -146,7 +208,7 @@
                         <th>Message</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="logBody">
                     @foreach ($lines as $line)
                         <tr>
                             <td>{{ $line }}</td>
@@ -175,5 +237,85 @@
             FloodIntel Laravel · {{ config('app.env') }}
         </p>
     </div>
+
+    <script>
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show toast-' + type;
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        function copyLogs() {
+            const rows = document.querySelectorAll('#logBody tr');
+            if (rows.length === 0) {
+                showToast('No logs to copy.', 'danger');
+                return;
+            }
+
+            const lines = Array.from(rows).map(row => {
+                const cells = row.querySelectorAll('td');
+                return cells.length >= 3 ? cells[2].textContent : row.textContent;
+            });
+
+            const text = lines.join('\n');
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('Copied ' + lines.length + ' log lines to clipboard.', 'success');
+                }).catch(() => {
+                    fallbackCopy(text);
+                });
+            } else {
+                fallbackCopy(text);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast('Logs copied to clipboard.', 'success');
+            } catch (err) {
+                showToast('Failed to copy logs.', 'danger');
+            }
+            document.body.removeChild(ta);
+        }
+
+        async function confirmClearLogs() {
+            if (!confirm('Are you sure you want to clear all server logs? This cannot be undone.')) {
+                return;
+            }
+
+            const btn = document.getElementById('btnClear');
+            btn.disabled = true;
+            btn.textContent = 'Clearing…';
+
+            try {
+                const res = await fetch('/api/diagnostics/logs-clear', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+
+                if (res.ok) {
+                    showToast('Logs cleared.', 'success');
+                    setTimeout(() => location.reload(), 600);
+                } else {
+                    const text = await res.text();
+                    showToast('Clear failed: ' + text, 'danger');
+                }
+            } catch (err) {
+                showToast('Clear failed: ' + err.message, 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🗑️ Clear logs';
+            }
+        }
+    </script>
 </body>
 </html>

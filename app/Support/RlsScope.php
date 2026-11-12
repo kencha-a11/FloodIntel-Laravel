@@ -50,10 +50,6 @@ final class RlsScope
         'users',
         'personal_access_tokens',
         'password_reset_tokens',
-        // Operational telemetry with no tenant fields beyond a report id; the
-        // rows are written by the measuring endpoint and read only by the
-        // officer-gated latency summary (D-67).
-        'realtime_latency_samples',
         // Created by the postgis extension, not by this application: a shared,
         // non-tenant SRID reference table (FR-72, D-99).
         'spatial_ref_sys',

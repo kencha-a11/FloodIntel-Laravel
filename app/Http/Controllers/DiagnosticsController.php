@@ -22,6 +22,17 @@ class DiagnosticsController extends Controller
      */
     public function logs(Request $request): Response
     {
+        try {
+            return $this->handleLogs($request);
+        } catch (\Throwable $e) {
+            Log::error('Diagnostics logs failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response('Diagnostics error: '.$e->getMessage(), 500);
+        }
+    }
+
+    private function handleLogs(Request $request): Response
+    {
         $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
 
         if (blank($expectedKey)) {
@@ -61,6 +72,17 @@ class DiagnosticsController extends Controller
      * being written to the log file.
      */
     public function test500(Request $request): Response
+    {
+        try {
+            return $this->handleTest500($request);
+        } catch (\Throwable $e) {
+            Log::error('Diagnostics test-500 failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response('Diagnostics error: '.$e->getMessage(), 500);
+        }
+    }
+
+    private function handleTest500(Request $request): Response
     {
         $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
 

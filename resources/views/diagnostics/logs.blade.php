@@ -151,9 +151,12 @@
                         <tr>
                             <td>{{ $line }}</td>
                             <td>
-                                @if (Str::contains($line, 'ERROR')) <span class="level-error">ERROR</span>
-                                @elseif (Str::contains($line, 'WARNING')) <span class="level-warning">WARNING</span>
-                                @elseif (Str::contains($line, 'INFO')) <span class="level-info">INFO</span>
+                                @php
+                                    $lineStr = (string) $line;
+                                @endphp
+                                @if (str_contains($lineStr, 'ERROR')) <span class="level-error">ERROR</span>
+                                @elseif (str_contains($lineStr, 'WARNING')) <span class="level-warning">WARNING</span>
+                                @elseif (str_contains($lineStr, 'INFO')) <span class="level-info">INFO</span>
                                 @else <span class="level-info">LOG</span>
                                 @endif
                             </td>

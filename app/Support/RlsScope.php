@@ -27,7 +27,6 @@ final class RlsScope
         'flood_reports',
         'flood_report_status_changes',
         'login_events',
-        'realtime_latency_samples',
         'situational_reports',
         'situational_report_inclusions',
     ];
@@ -50,6 +49,9 @@ final class RlsScope
         'users',
         'personal_access_tokens',
         'password_reset_tokens',
+        // Operational telemetry with no per-tenant scope to enforce; the
+        // runtime writes it and the officer summary reads it (CASE-009).
+        'realtime_latency_samples',
         // Created by the postgis extension, not by this application: a shared,
         // non-tenant SRID reference table (FR-72, D-99).
         'spatial_ref_sys',
@@ -60,6 +62,16 @@ final class RlsScope
      */
     public static function assertEveryTableDecided(Connection $connection): void
     {
+        $doubleListed = array_values(array_intersect(self::PROTECTED, self::UNPROTECTED));
+
+        if ($doubleListed !== []) {
+            throw new RuntimeException(sprintf(
+                'RLS scope: %s %s on both lists; a table belongs to exactly one (FR-64).',
+                implode(', ', $doubleListed),
+                count($doubleListed) === 1 ? 'is' : 'are',
+            ));
+        }
+
         $rows = $connection->select(<<<'SQL'
             SELECT c.relname AS name, c.relrowsecurity::text AS protected
             FROM pg_class c

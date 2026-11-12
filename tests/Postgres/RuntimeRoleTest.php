@@ -10,6 +10,87 @@ final class RuntimeRoleTest extends PostgresTestCase
 {
     use LazilyRefreshDatabase;
 
+    /**
+     * Tables app_runtime is explicitly granted on. Every public table must be
+     * on this list or the ungranted list, so a new table fails this test until
+     * someone decides its grants (CASE-009: realtime_latency_samples was
+     * created without one and the fixed assertions never noticed).
+     *
+     * @var list<string>
+     */
+    private const GRANTED_TABLES = [
+        'access_tags',
+        'barangays',
+        'cache',
+        'cache_locks',
+        'failed_jobs',
+        'flood_events',
+        'flood_impact_reports',
+        'flood_report_status_changes',
+        'flood_reports',
+        'job_batches',
+        'jobs',
+        'login_events',
+        'password_reset_tokens',
+        'personal_access_tokens',
+        'realtime_latency_samples',
+        'sessions',
+        'situational_report_inclusions',
+        'situational_reports',
+        'users',
+    ];
+
+    /**
+     * Tables the runtime is deliberately not granted on.
+     *
+     * @var list<string>
+     */
+    private const UNGRANTED_TABLES = [
+        'migrations',
+        'spatial_ref_sys',
+    ];
+
+    public function test_every_public_table_has_a_declared_grant_decision(): void
+    {
+        $tables = array_map(
+            fn (object $row): string => $row->name,
+            DB::select(<<<'SQL'
+                SELECT c.relname AS name
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+            SQL),
+        );
+
+        $this->assertSame([], array_values(array_intersect(self::GRANTED_TABLES, self::UNGRANTED_TABLES)));
+
+        $undecided = array_values(array_diff($tables, self::GRANTED_TABLES, self::UNGRANTED_TABLES));
+
+        $this->assertSame(
+            [],
+            $undecided,
+            'Decide app_runtime grants for: '.implode(', ', $undecided),
+        );
+    }
+
+    public function test_every_granted_table_is_readable_by_the_runtime_role(): void
+    {
+        foreach (self::GRANTED_TABLES as $table) {
+            $this->assertTrue(
+                $this->hasTablePrivilege($table, 'SELECT'),
+                "app_runtime must be granted SELECT on {$table}.",
+            );
+        }
+    }
+
+    public function test_the_runtime_role_can_write_latency_samples(): void
+    {
+        $this->assertTrue($this->hasTablePrivilege('realtime_latency_samples', 'SELECT'));
+        $this->assertTrue($this->hasTablePrivilege('realtime_latency_samples', 'INSERT'));
+        $this->assertFalse($this->hasTablePrivilege('realtime_latency_samples', 'UPDATE'));
+        $this->assertTrue($this->hasSequencePrivilege('realtime_latency_samples_id_seq', 'USAGE'));
+    }
+
     public function test_the_runtime_role_is_not_the_owner(): void
     {
         $role = DB::selectOne(
@@ -118,6 +199,16 @@ final class RuntimeRoleTest extends PostgresTestCase
         $row = DB::selectOne(
             'select has_column_privilege(cast(? as name), ?, ?, ?) as allowed',
             ['app_runtime', $table, $column, $privilege]
+        );
+
+        return $row->allowed;
+    }
+
+    private function hasSequencePrivilege(string $sequence, string $privilege): bool
+    {
+        $row = DB::selectOne(
+            'select has_sequence_privilege(cast(? as name), ?, ?) as allowed',
+            ['app_runtime', $sequence, $privilege]
         );
 
         return $row->allowed;

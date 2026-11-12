@@ -23,8 +23,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        $connection = Schema::getConnection();
-        $connection->unprepared('ALTER TABLE realtime_latency_samples ENABLE ROW LEVEL SECURITY');
         Schema::dropIfExists('realtime_latency_samples');
     }
 };

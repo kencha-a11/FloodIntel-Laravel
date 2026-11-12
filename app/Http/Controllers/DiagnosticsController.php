@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
+
+class DiagnosticsController extends Controller
+{
+    /**
+     * Maximum number of log lines to return in a single page view.
+     */
+    const MAX_LINES = 200;
+
+    /**
+     * Show recent application logs as an HTML page.
+     *
+     * Access is gated by a secret query key (`?key=...`) so the endpoint is
+     * not publicly guessable. No session or Sanctum token is required.
+     */
+    public function logs(Request $request): Response
+    {
+        $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
+
+        if (blank($expectedKey)) {
+            return response('Diagnostics are not configured on this server.', 503);
+        }
+
+        $providedKey = $request->query('key', '');
+
+        if (! Str::equals($providedKey, $expectedKey)) {
+            return response('Forbidden', 403);
+        }
+
+        $logPath = storage_path('logs/laravel.log');
+
+        if (! file_exists($logPath)) {
+            return view('diagnostics.logs', [
+                'lines' => [],
+                'message' => 'No log file found at storage/logs/laravel.log. File logging may not be enabled yet.',
+            ]);
+        }
+
+        $rawLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+
+        // Show the most recent lines first, capped to MAX_LINES.
+        $lines = array_slice($rawLines, -self::MAX_LINES);
+        $lines = array_reverse($lines);
+
+        return view('diagnostics.logs', [
+            'lines' => $lines,
+            'total' => count($rawLines),
+            'shown' => count($lines),
+        ]);
+    }
+
+    /**
+     * Deliberately throw an exception so you can verify that 500 errors are
+     * being written to the log file.
+     */
+    public function test500(Request $request): Response
+    {
+        $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
+
+        if (blank($expectedKey)) {
+            return response('Diagnostics are not configured on this server.', 503);
+        }
+
+        $providedKey = $request->query('key', '');
+
+        if (! Str::equals($providedKey, $expectedKey)) {
+            return response('Forbidden', 403);
+        }
+
+        Log::error('Diagnostics test-500 triggered manually.');
+
+        throw new \RuntimeException('This is a deliberate 500 test from DiagnosticsController@test500.');
+    }
+}

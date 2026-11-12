@@ -39,9 +39,7 @@ ALTER TABLE login_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY login_events_select ON login_events FOR SELECT TO app_runtime
 USING (user_id = app_user_id());
 
--- The USING clause is true so the policy applies to all inserts
 CREATE POLICY login_events_insert ON login_events FOR INSERT TO app_runtime
-USING (true)
 WITH CHECK (true);
 
 GRANT SELECT, INSERT ON TABLE login_events TO app_runtime;

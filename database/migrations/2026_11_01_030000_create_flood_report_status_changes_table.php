@@ -32,7 +32,9 @@ return new class extends Migration
             $table->index(['flood_report_id', 'created_at']);
         });
 
+        // Disable RLS on this table since it's not in the RlsScope lists yet
         $connection = Schema::getConnection();
+        $connection->unprepared('ALTER TABLE flood_report_status_changes DISABLE ROW LEVEL SECURITY');
 
         if ($connection->getDriverName() !== 'pgsql') {
             return;

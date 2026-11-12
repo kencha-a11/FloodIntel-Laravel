@@ -21,7 +21,7 @@ Route::get('/', function () {
 |
 */
 
-Route::get('/diagnostics/logs', [DiagnosticsController::class, 'logs'])->name('diagnostics.logs');
+Route::middleware([])->get('/diagnostics/logs', [DiagnosticsController::class, 'logs'])->name('diagnostics.logs');
 
-Route::get('/diagnostics/test-500', [DiagnosticsController::class, 'test500'])->name('diagnostics.test-500');
+Route::middleware([])->get('/diagnostics/test-500', [DiagnosticsController::class, 'test500'])->name('diagnostics.test-500');
 

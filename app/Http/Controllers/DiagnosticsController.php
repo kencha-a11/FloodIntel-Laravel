@@ -17,11 +17,6 @@ class DiagnosticsController extends Controller
         return $this->respond($request);
     }
 
-    public function logsNoKey(Request $request): Response
-    {
-        return $this->respond($request);
-    }
-
     public function clearLogs(Request $request): Response
     {
         return $this->respond($request, clearing: true);

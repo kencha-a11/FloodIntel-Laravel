@@ -13,16 +13,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\DiagnosticsController;
 use Illuminate\Support\Facades\Route;
-
-// Diagnostics avoid database-backed sessions so operators can investigate database outages.
-
-Route::get('/diagnostics/logs', [DiagnosticsController::class, 'logs'])->name('diagnostics.logs');
-
-Route::get('/diagnostics/logs-nokey', [DiagnosticsController::class, 'logsNoKey'])->name('diagnostics.logs-nokey');
-
-Route::post('/diagnostics/logs-clear', [DiagnosticsController::class, 'clearLogs'])->name('diagnostics.logs-clear');
 
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 

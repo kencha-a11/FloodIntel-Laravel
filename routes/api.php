@@ -16,21 +16,10 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\DiagnosticsController;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-# Public diagnostics (no login required)
-|--------------------------------------------------------------------------
-|
-| These routes live in api.php so they bypass StartSession middleware
-| (which reads the sessions DB table and 500s when the DB connection is
-| down). Access to /diagnostics/logs is gated by DIAGNOSTICS_KEY;
-| /diagnostics/logs-nokey is temporary and has NO auth — remove after use.
-|
-*/
+// Diagnostics avoid database-backed sessions so operators can investigate database outages.
 
 Route::get('/diagnostics/logs', [DiagnosticsController::class, 'logs'])->name('diagnostics.logs');
 
-// TEMPORARY: no-key log view — remove after debugging
 Route::get('/diagnostics/logs-nokey', [DiagnosticsController::class, 'logsNoKey'])->name('diagnostics.logs-nokey');
 
 Route::post('/diagnostics/logs-clear', [DiagnosticsController::class, 'clearLogs'])->name('diagnostics.logs-clear');

@@ -2,156 +2,110 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DiagnosticLogReader;
+use DateTimeImmutable;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class DiagnosticsController extends Controller
 {
-    /**
-     * Maximum number of log lines to return in a single page view.
-     */
-    const MAX_LINES = 200;
-
-    /**
-     * Show recent application logs as an HTML page.
-     *
-     * Access is gated by a secret query key (`?key=...`) so the endpoint is
-     * not publicly guessable. No session or Sanctum token is required.
-     */
-    public function logs(Request $request)
+    public function logs(Request $request): Response
     {
-        try {
-            return $this->handleLogs($request);
-        } catch (\Throwable $e) {
-            Log::error('Diagnostics logs failed: '.$e->getMessage(), ['exception' => $e]);
-
-            return response('Diagnostics error: '.$e->getMessage(), 500);
-        }
+        return $this->respond($request);
     }
 
-    private function handleLogs(Request $request)
+    public function logsNoKey(Request $request): Response
     {
-        $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
+        return $this->respond($request);
+    }
 
-        if (blank($expectedKey)) {
-            return response('Diagnostics are not configured on this server.', 503);
+    public function clearLogs(Request $request): Response
+    {
+        return $this->respond($request, clearing: true);
+    }
+
+    private function respond(Request $request, bool $clearing = false): Response
+    {
+        $nonce = base64_encode(random_bytes(24));
+
+        try {
+            $response = $this->handle($request, $nonce, $clearing);
+        } catch (Throwable) {
+            $response = response()->json(['message' => 'Diagnostics are temporarily unavailable.'], 503);
         }
 
-        $providedKey = $request->query('key', '');
-
-        if (! Str::equals($providedKey, $expectedKey)) {
-            return response('Forbidden', 403);
-        }
-
-        $logPath = storage_path('logs/laravel.log');
-
-        if (! file_exists($logPath)) {
-            return view('diagnostics.logs', [
-                'lines' => [],
-                'message' => 'No log file found at storage/logs/laravel.log. File logging may not be enabled yet.',
-            ]);
-        }
-
-        $rawLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
-
-        // Show the most recent lines first, capped to MAX_LINES.
-        $lines = array_slice($rawLines, -self::MAX_LINES);
-        $lines = array_reverse($lines);
-
-        return view('diagnostics.logs', [
-            'lines' => $lines,
-            'total' => count($rawLines),
-            'shown' => count($lines),
+        $response->headers->add([
+            'Cache-Control' => 'no-store, private',
+            'Referrer-Policy' => 'no-referrer',
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Frame-Options' => 'DENY',
+            'Content-Security-Policy' => "default-src 'none'; script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
         ]);
+
+        return $response;
     }
 
-    /**
-     * Deliberately throw an exception so you can verify that 500 errors are
-     * being written to the log file.
-     */
-    public function test500(Request $request)
+    private function handle(Request $request, string $nonce, bool $clearing): Response
     {
-        try {
-            return $this->handleTest500($request);
-        } catch (\Throwable $e) {
-            Log::error('Diagnostics test-500 failed: '.$e->getMessage(), ['exception' => $e]);
-
-            return response('Diagnostics error: '.$e->getMessage(), 500);
+        if (! app()->environment(['local', 'testing']) && ! $request->secure()) {
+            return response()->json(['message' => 'Diagnostics require HTTPS.'], 403);
         }
-    }
 
-    /**
-     * TEMPORARY: Show logs without a secret key. Remove this after debugging.
-     */
-    public function logsNoKey(Request $request)
-    {
-        try {
-            $logPath = storage_path('logs/laravel.log');
-
-            if (! file_exists($logPath)) {
-                return response('No log file found at storage/logs/laravel.log.', 404);
+        $cache = Cache::build([
+            'driver' => 'file',
+            'path' => config('diagnostics.cache_path'),
+            'lock_path' => config('diagnostics.cache_path'),
+        ]);
+        $key = 'diagnostics:'.hash('sha256', (string) $request->ip());
+        $retryAfter = $cache->lock($key.':lock', 5)->block(1, function () use ($cache, $key): int {
+            $limiter = new RateLimiter($cache);
+            if ($limiter->tooManyAttempts($key, 30)) {
+                return max(1, $limiter->availableIn($key));
             }
+            $limiter->hit($key, 60);
 
-            $rawLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+            return 0;
+        });
 
-            $lines = array_slice($rawLines, -self::MAX_LINES);
-            $lines = array_reverse($lines);
-
-            return view('diagnostics.logs', [
-                'lines' => $lines,
-                'total' => count($rawLines),
-                'shown' => count($lines),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Diagnostics no-key failed: '.$e->getMessage(), ['exception' => $e]);
-
-            return response('Diagnostics error: '.$e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * TEMPORARY: Clear the application log file. Remove this after debugging.
-     */
-    public function clearLogs(Request $request)
-    {
-        try {
-            $logPath = storage_path('logs/laravel.log');
-
-            if (! file_exists($logPath)) {
-                return response('No log file found.', 404);
-            }
-
-            // Truncate the log file to zero bytes.
-            file_put_contents($logPath, '');
-
-            Log::warning('Diagnostics clear-logs triggered manually.');
-
-            return response('', 204);
-        } catch (\Throwable $e) {
-            Log::error('Diagnostics clear-logs failed: '.$e->getMessage(), ['exception' => $e]);
-
-            return response('Diagnostics error: '.$e->getMessage(), 500);
-        }
-    }
-
-    private function handleTest500(Request $request)
-    {
-        $expectedKey = (string) env('DIAGNOSTICS_KEY', '');
-
-        if (blank($expectedKey)) {
-            return response('Diagnostics are not configured on this server.', 503);
+        if ($retryAfter > 0) {
+            return response()->json(['message' => 'Too many diagnostic requests. Try again shortly.'], 429)
+                ->header('Retry-After', (string) $retryAfter);
         }
 
-        $providedKey = $request->query('key', '');
-
-        if (! Str::equals($providedKey, $expectedKey)) {
-            return response('Forbidden', 403);
+        if (! $clearing && ! $request->expectsJson() && ! $request->hasHeader('X-Diagnostics-Key')) {
+            return response()->view('diagnostics.logs', ['nonce' => $nonce]);
         }
 
-        Log::error('Diagnostics test-500 triggered manually.');
+        $expected = (string) config('diagnostics.key');
+        $expiry = (string) config('diagnostics.expires_at');
+        $expiresAt = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:sP', $expiry);
+        if (strlen($expected) < 32 || ! $expiresAt || $expiresAt->format('Y-m-d\TH:i:sP') !== $expiry) {
+            return response()->json(['message' => 'Diagnostics access is not configured.'], 503);
+        }
 
-        throw new \RuntimeException('This is a deliberate 500 test from DiagnosticsController@test500.');
+        if ($expiresAt->getTimestamp() <= now()->getTimestamp()) {
+            return response()->json(['message' => 'Diagnostics access has expired.'], 403);
+        }
+
+        if (! hash_equals($expected, (string) $request->header('X-Diagnostics-Key', ''))) {
+            return response()->json(['message' => 'Diagnostics access denied.'], 403);
+        }
+
+        if ($clearing) {
+            return response()->json(['message' => 'Log clearing is disabled to preserve incident evidence.'], 403);
+        }
+
+        $result = app(DiagnosticLogReader::class)->read();
+
+        return response()->json($result + [
+            'environment' => app()->environment(),
+            'release' => preg_replace('/[^a-zA-Z0-9._-]/', '', substr((string) config('diagnostics.release'), 0, 80)),
+            'instance' => preg_replace('/[^a-zA-Z0-9._-]/', '', substr((string) config('diagnostics.instance'), 0, 80)),
+            'expires_at' => $expiry,
+            'fetched_at' => now()->toIso8601String(),
+        ], $result['state'] === 'unreadable' ? 503 : 200);
     }
 }

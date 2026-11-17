@@ -5,6 +5,24 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as Router;
 
 /**
+ * Temporary diagnostics surfaces that are deliberately outside the published
+ * contract. They are unauthenticated debug routes pending removal or a
+ * protection decision (CASE-010, 2026-11-17), and publishing them in
+ * public/openapi.json would advertise the exposure.
+ *
+ * The list is exhaustive: an api/ route must either appear in the contract or
+ * be named here, and the last test in this file fails if anything else is
+ * skipped.
+ *
+ * @var list<string>
+ */
+const API_CONTRACT_EXCLUDED_ROUTES = [
+    'GET /api/diagnostics/logs',
+    'GET /api/diagnostics/logs-nokey',
+    'POST /api/diagnostics/logs-clear',
+];
+
+/**
  * The published contract, decoded once per process. It is hand-written
  * (D-122); this file is the only thing that keeps it honest.
  *
@@ -86,9 +104,15 @@ function apiContractRoutes(): array
         }
 
         foreach ($route->methods() as $method) {
-            if ($method !== 'HEAD') {
-                $routes[] = ['method' => $method, 'route' => $route];
+            if ($method === 'HEAD') {
+                continue;
             }
+
+            if (in_array(apiContractKey($method, $route->uri()), API_CONTRACT_EXCLUDED_ROUTES, true)) {
+                continue;
+            }
+
+            $routes[] = ['method' => $method, 'route' => $route];
         }
     }
 
@@ -408,4 +432,42 @@ it('states the error envelope, the replay answer and the size ladder', function 
 
         expect($filing['200']['description'])->toContain('client_uuid');
     }
+});
+
+it('excludes only the temporary diagnostics routes from contract coverage', function () {
+    $registered = [];
+
+    foreach (Router::getRoutes() as $route) {
+        if (! str_starts_with($route->uri(), 'api/')) {
+            continue;
+        }
+
+        foreach ($route->methods() as $method) {
+            if ($method !== 'HEAD') {
+                $registered[apiContractKey($method, $route->uri())] = true;
+            }
+        }
+    }
+
+    foreach (API_CONTRACT_EXCLUDED_ROUTES as $key) {
+        expect($key)->toContain(' /api/diagnostics/');
+
+        $this->assertArrayHasKey(
+            $key,
+            $registered,
+            "The contract exclusion {$key} no longer names a registered route; remove it from API_CONTRACT_EXCLUDED_ROUTES.",
+        );
+    }
+
+    $uncovered = array_diff_key(
+        $registered,
+        array_fill_keys(API_CONTRACT_EXCLUDED_ROUTES, true),
+        apiContractOperationMap(),
+    );
+
+    $this->assertSame(
+        [],
+        $uncovered,
+        'Every other api/ route must appear in the contract; add an operation or a documented exclusion (CASE-010).',
+    );
 });

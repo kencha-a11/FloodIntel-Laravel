@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Logging\SanitizeDiagnosticRecord;
 use DateTimeImmutable;
+use Monolog\Level;
 use Throwable;
 
 final class DiagnosticLogReader
@@ -32,9 +33,13 @@ final class DiagnosticLogReader
         }
 
         $source = basename(str_replace('\\', '/', $path));
+        $directory = dirname($path);
 
-        // Retry metadata/open once if rotation removes a candidate. Never retry
-        // a scan: the read budget is total, not a per-attempt limit.
+        if (file_exists($directory) && (! is_dir($directory) || ! is_readable($directory))) {
+            return $this->result('unreadable', $source);
+        }
+
+        // Retry vanished metadata, never the scan: its byte budget is total.
         for ($attempt = 0; $attempt < 2; $attempt++) {
             $candidates = $this->candidates($path);
 
@@ -210,6 +215,10 @@ final class DiagnosticLogReader
 
             $details = count($lines) > 1 ? SanitizeDiagnosticRecord::text("[stacktrace]\n".implode("\n", array_slice($lines, 1))) : '';
 
+            if (preg_match('/\[object\] \(([A-Za-z_\\\\][A-Za-z0-9_\\\\]{0,199})(?:\(|:)/', $block, $exception) === 1) {
+                $details = SanitizeDiagnosticRecord::text($exception[1])."\n".$details;
+            }
+
             return $this->bounded([
                 'time' => $this->time($header[1]),
                 'level' => $this->level($header[2]),
@@ -234,12 +243,12 @@ final class DiagnosticLogReader
             'level' => $this->level($record['level_name'] ?? $record['level'] ?? ''),
             'message' => SanitizeDiagnosticRecord::text($record['message']),
             'details' => $details === [] ? '' : (string) json_encode($details, JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE),
-            'request_id' => $context['request_id'] ?? $extra['request_id'] ?? '',
+            'request_id' => $context['request_id'] ?? $extra['request_id'] ?? $extra['event_id'] ?? $context['event_id'] ?? '',
         ], $truncated);
     }
 
     /** @param array{time: string, level: string, message: string, details: string, request_id: string} $event
-     *  @return array{time: string, level: string, message: string, details: string, request_id: string}
+     * @return array{time: string, level: string, message: string, details: string, request_id: string}
      */
     private function bounded(array $event, bool &$truncated): array
     {
@@ -253,7 +262,7 @@ final class DiagnosticLogReader
     }
 
     /** @param list<array<string, string>> $events
-     *  @param array<string, string> $event
+     * @param  array<string, string>  $event
      */
     private function append(array &$events, array $event, bool &$truncated): void
     {
@@ -271,6 +280,10 @@ final class DiagnosticLogReader
             return '';
         }
 
+        if (preg_match('/(?:Z|[+-]\d{2}:\d{2})$/', $value) !== 1) {
+            return $value;
+        }
+
         try {
             return (new DateTimeImmutable($value))->format('Y-m-d\TH:i:sP');
         } catch (Throwable) {
@@ -280,6 +293,10 @@ final class DiagnosticLogReader
 
     private function level(mixed $value): string
     {
+        if (is_int($value)) {
+            return strtolower(Level::tryFrom($value)?->getName() ?? 'unknown');
+        }
+
         $level = is_string($value) ? strtolower($value) : '';
 
         return in_array($level, ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'], true) ? $level : 'unknown';
@@ -292,7 +309,7 @@ final class DiagnosticLogReader
     }
 
     /** @param list<array<string, string>> $events
-     *  @return array{events: list<array<string, string>>, state: string, truncated: bool, source: string, scope: string}
+     * @return array{events: list<array<string, string>>, state: string, truncated: bool, source: string, scope: string}
      */
     private function result(string $state, string $source, array $events = [], bool $truncated = false): array
     {

@@ -7,6 +7,7 @@ use Illuminate\Log\LogManager;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\File;
+use Tests\TestCase;
 
 beforeEach(function () {
     $this->diagnosticDirectories = [];
@@ -18,7 +19,7 @@ afterEach(function () {
     }
 });
 
-function diagnosticDirectory(Tests\TestCase $test): string
+function diagnosticDirectory(TestCase $test): string
 {
     $directory = tempnam(sys_get_temp_dir(), 'diagnostic-test-');
     unlink($directory);
@@ -370,6 +371,87 @@ it('rechecks source metadata after rotation and removal without retaining old ev
 
     unlink($directory.'/laravel-2026-11-17.log');
     expect($reader->read())->toMatchArray(['state' => 'missing', 'events' => []]);
+});
+
+it('sanitizes historical JSON exceptions and preserves their class and argument-free frames', function () {
+    $directory = diagnosticDirectory($this);
+    file_put_contents($directory.'/laravel.log', diagnosticJson('Stored failure', [
+        'level_name' => null,
+        'level' => 400,
+        'context' => ['exception' => [
+            'class' => RuntimeException::class,
+            'message' => 'postgres://fixture:historical-secret@host/db',
+            'trace' => ["#0 /private/Worker.php(12): App\\Worker->run('historical-argument')"],
+            'bindings' => ['historical-binding'],
+        ]],
+    ]));
+
+    $event = (new DiagnosticLogReader)->read()['events'][0];
+
+    expect(array_keys($event))->toBe(['time', 'level', 'message', 'details', 'request_id']);
+    expect($event['level'])->toBe('error');
+    expect($event['details'])->toContain('RuntimeException', 'Worker.php(12)');
+    expect(json_encode($event))->not->toContain('historical-secret', 'historical-argument', 'historical-binding');
+});
+
+it('retains a legacy exception class while omitting its payload and trace arguments', function () {
+    $directory = diagnosticDirectory($this);
+    file_put_contents($directory.'/laravel.log',
+        '[2026-11-17 12:00:00] local.ERROR: Worker failed {"exception":"[object] (RuntimeException(code: 0): password=legacy-secret at /private/Worker.php:12)'."\n"
+        ."[stacktrace]\n#0 /private/Worker.php(12): App\\Worker->run('legacy-argument')\n",
+    );
+
+    $event = (new DiagnosticLogReader)->read()['events'][0];
+
+    expect($event['message'])->toBe('Worker failed [context omitted]');
+    expect($event['details'])->toContain('RuntimeException', '#0 Worker.php(12): App\\Worker->run()');
+    expect(json_encode($event))->not->toContain('legacy-secret', 'legacy-argument', '/private');
+});
+
+it('reports the newest unreadable sibling instead of silently displaying stale base data', function () {
+    $directory = diagnosticDirectory($this);
+    $this->travelTo(new DateTimeImmutable('2026-11-17T12:00:00+00:00'));
+    file_put_contents($directory.'/laravel.log', diagnosticJson('Stale base event'));
+    touch($directory.'/laravel.log', 1000);
+    mkdir($directory.'/laravel-2026-11-17.log');
+
+    expect((new DiagnosticLogReader)->read())->toMatchArray([
+        'state' => 'unreadable', 'source' => 'laravel-2026-11-17.log', 'events' => [],
+    ]);
+});
+
+it('uses the default storage log path only when no diagnostic path is configured', function () {
+    $directory = diagnosticDirectory($this);
+    $this->app->useStoragePath($directory);
+    config(['diagnostics' => []]);
+    mkdir($directory.'/logs');
+    file_put_contents($directory.'/logs/laravel.log', diagnosticJson('Default path event'));
+
+    $result = (new DiagnosticLogReader)->read();
+
+    expect($result['source'])->toBe('laravel.log');
+    expect($result['events'][0]['message'])->toBe('Default path event');
+});
+
+it('preserves commit labels and exposes a generated event ID for sink correlation', function () {
+    $directory = diagnosticDirectory($this);
+    config(['diagnostics.release' => str_repeat('abcdef12', 5)]);
+    $logger = (new LogManager($this->app))->channel('single');
+
+    $logger->error('Synthetic correlation event');
+    $logger->getLogger()->close();
+
+    $stored = json_decode(file_get_contents($directory.'/laravel.log'), true, 32, JSON_THROW_ON_ERROR);
+    $event = (new DiagnosticLogReader)->read()['events'][0];
+    expect($stored['extra']['release'])->toBe(str_repeat('abcdef12', 5));
+    expect($event['request_id'])->toBeUuid()->toBe($stored['extra']['event_id']);
+});
+
+it('does not invent a timezone for historical timestamps without an offset', function () {
+    $directory = diagnosticDirectory($this);
+    file_put_contents($directory.'/laravel.log', "[2026-11-17 12:00:00] local.ERROR: Historical event\n");
+
+    expect((new DiagnosticLogReader)->read()['events'][0]['time'])->toBe('2026-11-17 12:00:00');
 });
 
 it('routes nginx access output to stdout without request targets headers or peer identity', function () {

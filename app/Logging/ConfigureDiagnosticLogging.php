@@ -18,8 +18,7 @@ final class ConfigureDiagnosticLogging
 
         foreach ($logger->getHandlers() as $handler) {
             if ($handler instanceof ProcessableHandlerInterface) {
-                // Stacks flatten channel processors; sanitize again at the sink
-                // after Laravel's contextual processors have added their data.
+                // Re-sanitize context added after stacks flatten channel processors.
                 $handler->pushProcessor($sanitizer);
             }
 

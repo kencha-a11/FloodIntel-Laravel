@@ -32,11 +32,7 @@ final class SanitizeDiagnosticRecord implements ProcessorInterface
         );
     }
 
-    /**
-     * Fail closed on payloads, encoded values and SQL instead of trying to find
-     * every possible credential key. Only the first prose line and argument-free
-     * stack frames survive; unstructured continuation data is never copied.
-     */
+    // Keep first-line prose and argument-free frames; omit unstructured payloads.
     public static function text(string $text): string
     {
         if (strlen($text) > 8192 || ! mb_check_encoding($text, 'UTF-8')) {
@@ -85,7 +81,7 @@ final class SanitizeDiagnosticRecord implements ProcessorInterface
     }
 
     /** @param array<mixed> $context
-     *  @return array<string, mixed>
+     * @return array<string, mixed>
      */
     public static function context(array $context): array
     {
@@ -137,6 +133,10 @@ final class SanitizeDiagnosticRecord implements ProcessorInterface
             return '';
         }
 
+        if (preg_match('/\A[0-9a-f]{40}(?:[0-9a-f]{24})?\z/i', $value) === 1 || Str::isUuid($value)) {
+            return $value;
+        }
+
         return self::text($value) === $value ? $value : '';
     }
 
@@ -186,7 +186,7 @@ final class SanitizeDiagnosticRecord implements ProcessorInterface
 
         if (preg_match('/^(.*?)\((\d+)\):\s*(.*)$/', $call, $locationParts) === 1) {
             $file = basename(str_replace('\\', '/', $locationParts[1]));
-            $location = preg_match('/\A[A-Za-z0-9_.-]+\.php\z/', $file) === 1
+            $location = preg_match('/\A[A-Za-z0-9_.-]+\.php\z/', $file) === 1 && self::text($file) === $file
                 ? $file.'('.$locationParts[2].'): ' : '[internal function]: ';
             $call = $locationParts[3];
         } elseif (str_starts_with($call, '[internal function]: ')) {
@@ -196,7 +196,7 @@ final class SanitizeDiagnosticRecord implements ProcessorInterface
 
         $call = preg_replace('/\(.*$/', '()', $call) ?? '';
 
-        if (preg_match('/\A(?:[A-Za-z_\\\\][A-Za-z0-9_\\\\]*(?:(?:->|::)[A-Za-z_][A-Za-z0-9_]*)?|\{(?:main|closure)\})(?:\(\))?\z/', $call) !== 1) {
+        if (preg_match('/\A(?:[A-Za-z_\\\\][A-Za-z0-9_\\\\]*(?:(?:->|::)[A-Za-z_][A-Za-z0-9_]*)?\(\)|\{(?:main|closure)\}(?:\(\))?)\z/', $call) !== 1) {
             return $prefix.'[frame omitted]';
         }
 

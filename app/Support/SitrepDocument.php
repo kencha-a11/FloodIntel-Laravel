@@ -49,6 +49,9 @@ final class SitrepDocument
                 'window_starts_at' => self::label($report->window_starts_at, $report->timezone),
                 'window_ends_at' => self::label($report->window_ends_at, $report->timezone),
                 'snapshot_at' => self::label($report->snapshot_at, $report->timezone),
+                // The office memorandum's DATE convention: MM/DD/YYYY, as of
+                // HH:MM /AMPM (reference specimen, page 1).
+                'snapshot_as_of' => $report->snapshot_at?->copy()->setTimezone($report->timezone)->format('m/d/Y, \a\s \o\f h:i /A'),
                 'prepared_by_name' => $report->generated_by_name,
                 'prepared_by_role' => $report->generated_by_role,
                 'has_content' => $content !== null,

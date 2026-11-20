@@ -22,10 +22,12 @@
     /* Memorandum: underlined addressee, label/value columns, thin rule. */
     .memorandum { border-bottom: 1px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
     .memorandum .addressee { font-weight: bold; text-decoration: underline; margin: 6px 0; }
-    .memo-row { display: flex; margin: 3px 0; }
-    .memo-label { flex: 0 0 92px; }
+    /* Template tab stops: label, colon column at 1440 twips, value column at
+       2268 twips; rows sit flush with no inter-row whitespace. */
+    .memo-row { display: flex; margin: 0; }
+    .memo-label { flex: 0 0 96px; }
+    .memo-colon { flex: 0 0 55px; }
     .memo-value { flex: 1; font-weight: bold; }
-    .meta-line { margin: 2px 0; }
     /* Section bands mirror the template shading: Roman = blue, lettered =
        green, sub-subsection = light green. */
     .band { font-size: 12pt; font-weight: bold; margin: 12px 0 6px; padding: 3px 8px; }
@@ -81,12 +83,11 @@
 
     <div class="memorandum">
         <p class="addressee">MEMORANDUM FOR THE CHAIRPERSON, MDRRMC</p>
-        <div class="memo-row"><span class="memo-label">THRU:</span><span class="memo-value">{{ $doc['office']['thru'] }}</span></div>
-        <div class="memo-row"><span class="memo-label">FROM:</span><span class="memo-value">{{ $doc['office']['signatory'] }}, {{ $doc['office']['signatory_title'] }}</span></div>
-        <div class="memo-row"><span class="memo-label">SUBJECT:</span><span class="memo-value">Situational Report No. {{ $doc['issuance']['report_number'] ?? 'XX (unissued draft)' }} Re:
+        <div class="memo-row"><span class="memo-label">THRU</span><span class="memo-colon">:</span><span class="memo-value">{{ $doc['office']['thru'] }}</span></div>
+        <div class="memo-row"><span class="memo-label">FROM</span><span class="memo-colon">:</span><span class="memo-value">{{ $doc['office']['signatory'] }}</span></div>
+        <div class="memo-row"><span class="memo-label">SUBJECT</span><span class="memo-colon">:</span><span class="memo-value">Situational Report No. {{ $doc['issuance']['report_number'] ?? 'XX (unissued draft)' }} Re:
             @if ($doc['event']){{ $doc['event']['title'] }}@else<span class="unavailable">No flood event linked to this revision</span>@endif</span></div>
-        <div class="memo-row"><span class="memo-label">DATE:</span><span class="memo-value">{{ $doc['meta']['snapshot_at'] }} ({{ $doc['meta']['timezone'] }})</span></div>
-        <p class="meta-line">For the period {{ $doc['meta']['window_starts_at'] }} to {{ $doc['meta']['window_ends_at'] }}</p>
+        <div class="memo-row"><span class="memo-label">DATE</span><span class="memo-colon">:</span><span class="memo-value">{{ $doc['meta']['snapshot_as_of'] }}</span></div>
     </div>
 
     <div class="adaptation">{{ $doc['adaptation'] }}</div>
@@ -107,7 +108,7 @@
         <thead>
             <tr>
                 <th>City/Municipality/Barangay</th>
-                <th>Depth of Flooding (qualitative tier)</th>
+                <th>Depth of Flooding</th>
                 <th>Remarks</th>
             </tr>
         </thead>
@@ -148,9 +149,9 @@
             @endforelse
         </tbody>
     </table>
-    <p class="source">Source/s: Barangay DRRM. Alert/Alarm/Critical threshold columns are unavailable — no reviewed threshold supplement was frozen into this revision.</p>
+    <p class="source">Source/s: {{ $doc['sections']['station'][0]['source'] ?? 'Barangay DRRM' }}. Alert/Alarm/Critical threshold columns are unavailable — no reviewed threshold supplement was frozen into this revision.</p>
 
-    <h3 class="band band-letter">c. Status of Lifelines</h3>
+    <h3 class="band band-letter">c. Status of Lifelines (Source/s)</h3>
     @php
         $lifelines = collect($doc['sections']['lifeline'])->groupBy(fn ($row) => $row['payload']['kind'] ?? 'other');
     @endphp
@@ -179,7 +180,7 @@
             <thead>
                 <tr>
                     <th>Affected City/Municipality/Barangay</th>
-                    <th>Date and Time of Interruption / Outages</th>
+                    <th>Date and Time of Interruption{{ $kind === 'power' ? ' / Outages' : '' }}</th>
                     <th>Date and Time Restored</th>
                     <th>Remarks</th>
                 </tr>
@@ -227,9 +228,9 @@
             @endforelse
         </tbody>
     </table>
+    <p class="source">Source/s: {{ $doc['sections']['evacuation'][0]['source'] ?? 'Unavailable' }}.</p>
 
     <h3 class="band band-letter">e. Affected Population</h3>
-    <h4 class="band band-sub">Evacuees</h4>
     <table>
         <thead>
             <tr>
@@ -262,22 +263,16 @@
                     <td class="num">@if (is_null($evacuees['payload']['outside'] ?? null))<span class="unavailable">Unavailable</span>@else{{ $evacuees['payload']['outside'] }}@endif</td>
                 </tr>
             @endforeach
-            <tr>
-                <th>Total</th>
-                <td class="num unavailable">Unavailable</td>
-                <td class="num unavailable">Unavailable</td>
-                <td class="num">@if ($doc['sections']['evacuees'] === [])<span class="unavailable">Unavailable</span>@else{{ collect($doc['sections']['evacuees'])->sum(fn ($r) => (int) ($r['payload']['inside'] ?? 0)) }}@endif</td>
-                <td class="num unavailable">Unavailable</td>
-                <td class="num">@if ($doc['sections']['evacuees'] === [])<span class="unavailable">Unavailable</span>@else{{ collect($doc['sections']['evacuees'])->sum(fn ($r) => (int) ($r['payload']['outside'] ?? 0)) }}@endif</td>
-            </tr>
         </tbody>
     </table>
 
-    <h4 class="band band-sub">Affected Population</h4>
     <table>
         <thead>
             <tr>
-                <th>Barangay</th>
+                <th rowspan="2">Barangay</th>
+                <th colspan="3" class="center">Affected Population</th>
+            </tr>
+            <tr>
                 <th class="num">No. of HH</th>
                 <th class="num">No. of Families</th>
                 <th class="num">No. of Individuals</th>
@@ -292,15 +287,11 @@
                     <td class="num">@if (is_null($row['affected_individuals']))<span class="unavailable">Unavailable</span>@else{{ $row['affected_individuals'] }}@endif</td>
                 </tr>
             @endforeach
-            <tr>
-                <th>Total</th>
-                <td class="num unavailable">Unavailable</td>
-                <td class="num">@if (is_null($doc['stage_two']['affected_families']))<span class="unavailable">Unavailable</span>@else{{ $doc['stage_two']['affected_families'] }}@endif</td>
-                <td class="num">@if (is_null($doc['stage_two']['affected_individuals']))<span class="unavailable">Unavailable</span>@else{{ $doc['stage_two']['affected_individuals'] }}@endif</td>
-            </tr>
         </tbody>
     </table>
-    <p class="source">Source/s: MSWD/BDRRMC. {{ $doc['stage_two']['reason'] }} Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.</p>
+    <p class="source">Source/s: MSWD/BDRRMC. {{ $doc['stage_two']['reason'] }} Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.
+        Municipal totals: @if ($doc['sections']['evacuees'] === [])<span class="unavailable">Unavailable</span>@else{{ collect($doc['sections']['evacuees'])->sum(fn ($r) => (int) ($r['payload']['inside'] ?? 0)).' inside / '.collect($doc['sections']['evacuees'])->sum(fn ($r) => (int) ($r['payload']['outside'] ?? 0)).' outside evacuees' }}@endif;
+        @if (is_null($doc['stage_two']['affected_families']))<span class="unavailable">Unavailable</span>@else{{ $doc['stage_two']['affected_families'].' families / '.$doc['stage_two']['affected_individuals'].' individuals' }}@endif affected.</p>
 
     <h3 class="band band-letter">f. Casualties (Dead / Injured)</h3>
     <table>
@@ -315,10 +306,11 @@
                     <td class="num">{{ $row['payload']['injured'] ?? 'Unavailable' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="3" class="unavailable">Unavailable — no reviewed casualty supplement was frozen into this revision. Aggregate-only (D-45): no individual identities.</td></tr>
+                <tr><td colspan="3" class="unavailable">Unavailable — no reviewed casualty supplement was frozen into this revision.</td></tr>
             @endforelse
         </tbody>
     </table>
+    <p class="source">Source/s: {{ $doc['sections']['casualties'][0]['source'] ?? 'Unavailable' }}. Aggregate-only (D-45): no individual identities.</p>
 
     <h3 class="band band-letter">g. Damaged Houses</h3>
     <table>
@@ -350,7 +342,7 @@
                     <tr class="group-row"><td colspan="3">{{ $row['label'] }}</td></tr>
                 @else
                     <tr>
-                        <td @if ($row['indent']) class="indent" @endif>{{ $row['label'] }}</td>
+                        <td @if ($row['indent']) class="indent" @endif>@if ($row['indent'])- @endif{{ $row['label'] }}</td>
                         <td class="num">@if (is_null($row['cost']))<span class="unavailable">Unavailable</span>@else{{ $row['cost'] }}@endif</td>
                         <td>@if (is_null($row['remarks']))<span class="unavailable">Unavailable</span>@else{{ $row['remarks'] }}@endif</td>
                     </tr>

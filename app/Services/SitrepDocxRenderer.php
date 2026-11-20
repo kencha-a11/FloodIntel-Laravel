@@ -9,6 +9,7 @@ use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
 use PhpOffice\PhpWord\SimpleType\Jc;
 use PhpOffice\PhpWord\SimpleType\TblWidth;
+use PhpOffice\PhpWord\Style\Tab;
 
 /**
  * DOCX export of the adapted SITREP (D-147, G5: PDF + DOCX; format fidelity
@@ -112,28 +113,30 @@ final class SitrepDocxRenderer
         );
 
         $rows = [
-            'THRU:' => $doc['office']['thru'],
-            'FROM:' => $doc['office']['signatory'].', '.$doc['office']['signatory_title'],
-            'SUBJECT:' => 'Situational Report No. '.($doc['issuance']['report_number'] ?? 'XX (unissued draft)').' Re: '
+            'THRU' => $doc['office']['thru'],
+            'FROM' => $doc['office']['signatory'],
+            'SUBJECT' => 'Situational Report No. '.($doc['issuance']['report_number'] ?? 'XX (unissued draft)').' Re: '
                 .($doc['event']['title'] ?? 'No flood event linked to this revision'),
-            'DATE:' => $doc['meta']['snapshot_at'].' ('.$doc['meta']['timezone'].')',
+            'DATE' => $doc['meta']['snapshot_as_of'],
         ];
+
+        // Template tab stops: colon at 1440 twips, value at 2268 twips with a
+        // hanging indent so wrapped subject lines align under the value.
+        // setTabs only accepts Tab objects; plain arrays are silently dropped.
+        $tabs = [new Tab('left', 1440), new Tab('left', 2268)];
 
         foreach ($rows as $label => $value) {
             $run = $section->addTextRun([
-                'tabs' => [['type' => 'left', 'position' => 1300]],
+                'tabs' => $tabs,
+                'indentation' => ['left' => 2268, 'hanging' => 2268],
                 'spaceAfter' => 0,
             ]);
             $run->addText($label);
             $run->addText("\t");
+            $run->addText(':');
+            $run->addText("\t");
             $run->addText($value, ['bold' => true]);
         }
-
-        $section->addText(
-            'For the period '.$doc['meta']['window_starts_at'].' to '.$doc['meta']['window_ends_at'],
-            null,
-            ['spaceAfter' => 60],
-        );
 
         $this->rule($section, 6);
 
@@ -180,7 +183,7 @@ final class SitrepDocxRenderer
     {
         $this->band($section, 'a. Flooding Situation', self::BAND_LETTER);
         $table = $this->table($section);
-        $this->headerRow($table, ['City/Municipality/Barangay', 'Depth of Flooding (qualitative tier)', 'Remarks']);
+        $this->headerRow($table, ['City/Municipality/Barangay', 'Depth of Flooding', 'Remarks']);
 
         foreach ($doc['barangays'] as $row) {
             $table->addRow();
@@ -224,7 +227,7 @@ final class SitrepDocxRenderer
             $table->addCell(1600)->addText('Unavailable', ['italic' => true]);
         }
 
-        $section->addText('Source/s: Barangay DRRM. Alert/Alarm/Critical threshold columns are unavailable — no reviewed threshold supplement was frozen into this revision.', ['size' => 10, 'italic' => true]);
+        $section->addText('Source/s: '.($doc['sections']['station'][0]['source'] ?? 'Barangay DRRM').'. Alert/Alarm/Critical threshold columns are unavailable — no reviewed threshold supplement was frozen into this revision.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -232,7 +235,7 @@ final class SitrepDocxRenderer
      */
     private function lifelines(Section $section, array $doc): void
     {
-        $this->band($section, 'c. Status of Lifelines', self::BAND_LETTER);
+        $this->band($section, 'c. Status of Lifelines (Source/s)', self::BAND_LETTER);
 
         $kinds = ['roads_bridges' => 'i. Roads and Bridges', 'power' => 'ii. Power Interruption', 'communications' => 'iii. Communications', 'water_supply' => 'iv. Water Supply'];
         $grouped = [];
@@ -261,7 +264,7 @@ final class SitrepDocxRenderer
                     $table->addCell(3400)->addText('Unavailable', ['italic' => true]);
                 }
             } else {
-                $this->headerRow($table, ['Affected City/Municipality/Barangay', 'Date and Time of Interruption / Outages', 'Date and Time Restored', 'Remarks']);
+                $this->headerRow($table, ['Affected City/Municipality/Barangay', 'Date and Time of Interruption'.($kind === 'power' ? ' / Outages' : ''), 'Date and Time Restored', 'Remarks']);
 
                 if ($rows === []) {
                     $this->emptyRow($table, 4, 'Unavailable — no reviewed supplement was frozen into this revision.');
@@ -302,6 +305,8 @@ final class SitrepDocxRenderer
             $table->addCell(1800)->addText($row['observed_at'] ?? 'Unavailable');
             $table->addCell(1200)->addText('Unavailable', ['italic' => true]);
         }
+
+        $section->addText('Source/s: '.($doc['sections']['evacuation'][0]['source'] ?? 'Unavailable').'.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -311,7 +316,6 @@ final class SitrepDocxRenderer
     {
         $this->band($section, 'e. Affected Population', self::BAND_LETTER);
 
-        $this->band($section, 'Evacuees', self::BAND_SUB);
         $table = $this->table($section);
         $table->addRow();
         $table->addCell(2200, ['vMerge' => 'restart'])->addText('Barangay', ['bold' => true]);
@@ -340,17 +344,15 @@ final class SitrepDocxRenderer
             $table->addCell(1800)->addText($this->figure($evacuees['payload']['outside'] ?? null));
         }
 
-        $table->addRow();
-        $table->addCell(2200)->addText('Total', ['bold' => true]);
-        $table->addCell(1400)->addText('Unavailable', ['italic' => true]);
-        $table->addCell(1800)->addText('Unavailable', ['italic' => true]);
-        $table->addCell(1800)->addText($this->figure($this->sumPayload($doc['sections']['evacuees'], 'inside')));
-        $table->addCell(1800)->addText('Unavailable', ['italic' => true]);
-        $table->addCell(1800)->addText($this->figure($this->sumPayload($doc['sections']['evacuees'], 'outside')));
-
-        $this->band($section, 'Affected Population', self::BAND_SUB);
         $table = $this->table($section);
-        $this->headerRow($table, ['Barangay', 'No. of HH', 'No. of Families', 'No. of Individuals']);
+        $table->addRow();
+        $table->addCell(3000, ['vMerge' => 'restart'])->addText('Barangay', ['bold' => true]);
+        $table->addCell(7800, ['gridSpan' => 3])->addText('Affected Population', ['bold' => true], ['alignment' => Jc::CENTER]);
+        $table->addRow();
+        $table->addCell(3000, ['vMerge' => 'continue']);
+        $table->addCell(2400)->addText('No. of HH', ['bold' => true]);
+        $table->addCell(2700)->addText('No. of Families', ['bold' => true]);
+        $table->addCell(2700)->addText('No. of Individuals', ['bold' => true]);
 
         foreach ($doc['barangays'] as $row) {
             $table->addRow();
@@ -360,13 +362,12 @@ final class SitrepDocxRenderer
             $table->addCell(2700)->addText($this->figure($row['affected_individuals']));
         }
 
-        $table->addRow();
-        $table->addCell(3000)->addText('Total', ['bold' => true]);
-        $table->addCell(2400)->addText('Unavailable', ['italic' => true]);
-        $table->addCell(2700)->addText($this->figure($doc['stage_two']['affected_families']));
-        $table->addCell(2700)->addText($this->figure($doc['stage_two']['affected_individuals']));
-
-        $section->addText('Source/s: MSWD/BDRRMC. '.$doc['stage_two']['reason'].' Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.', ['size' => 10, 'italic' => true]);
+        $section->addText(
+            'Source/s: MSWD/BDRRMC. '.$doc['stage_two']['reason'].' Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.'
+            .' Municipal totals: '.$this->figure($this->sumPayload($doc['sections']['evacuees'], 'inside')).' inside / '.$this->figure($this->sumPayload($doc['sections']['evacuees'], 'outside')).' outside evacuees;'
+            .' '.$this->figure($doc['stage_two']['affected_families']).' families / '.$this->figure($doc['stage_two']['affected_individuals']).' individuals affected.',
+            ['size' => 10, 'italic' => true],
+        );
     }
 
     /**
@@ -379,7 +380,7 @@ final class SitrepDocxRenderer
         $this->headerRow($table, ['City/Municipality/Barangay', 'Dead (persons)', 'Injured (persons)']);
 
         if ($doc['sections']['casualties'] === []) {
-            $this->emptyRow($table, 3, 'Unavailable — no reviewed casualty supplement was frozen into this revision. Aggregate-only (D-45): no individual identities.');
+            $this->emptyRow($table, 3, 'Unavailable — no reviewed casualty supplement was frozen into this revision.');
         }
 
         foreach ($doc['sections']['casualties'] as $row) {
@@ -388,6 +389,8 @@ final class SitrepDocxRenderer
             $table->addCell(3200)->addText($this->figure($row['payload']['dead'] ?? null));
             $table->addCell(3200)->addText($this->figure($row['payload']['injured'] ?? null));
         }
+
+        $section->addText('Source/s: '.($doc['sections']['casualties'][0]['source'] ?? 'Unavailable').'. Aggregate-only (D-45): no individual identities.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -431,7 +434,7 @@ final class SitrepDocxRenderer
                 continue;
             }
 
-            $table->addCell(5000)->addText($row['label'], null, $row['indent'] ? ['indentation' => ['left' => 200]] : []);
+            $table->addCell(5000)->addText(($row['indent'] ? '- ' : '').$row['label'], null, $row['indent'] ? ['indentation' => ['left' => 200]] : []);
             $table->addCell(3000)->addText($row['cost'] ?? 'Unavailable', $row['cost'] === null ? ['italic' => true] : []);
             $table->addCell(2800)->addText($row['remarks'] ?? 'Unavailable', $row['remarks'] === null ? ['italic' => true] : []);
         }

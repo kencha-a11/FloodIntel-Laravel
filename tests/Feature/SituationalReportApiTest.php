@@ -8,6 +8,7 @@ use App\Models\SituationalReportSupplement;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\File;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -126,9 +127,11 @@ it('renders the frozen document identically twice and keeps field roles out', fu
         ->toContain('Email:')
         ->toContain('MEMORANDUM FOR THE CHAIRPERSON, MDRRMC')
         ->toContain('text-decoration: underline')
-        ->toContain('THRU:')
-        ->toContain('FROM:')
-        ->toContain('SUBJECT:')
+        ->toContain('>THRU</span>')
+        ->toContain('>FROM</span>')
+        ->toContain('>SUBJECT</span>')
+        ->toContain('memo-colon')
+        ->not->toContain('For the period')
         ->toContain('band-roman')
         ->toContain('band-letter')
         ->toContain('#bdd6ee')
@@ -136,7 +139,15 @@ it('renders the frozen document identically twice and keeps field roles out', fu
         ->toContain('II. EFFECTS')
         ->toContain('III. ACTIONS TAKEN')
         ->toContain('iv. Water Supply')
-        ->toContain('Depth of Flooding (qualitative tier)')
+        ->toContain('Depth of Flooding')
+        ->toContain('c. Status of Lifelines (Source/s)')
+        ->toContain('11/02/2026, as of')
+        ->toContain('- Crops')
+        ->toContain('colspan="3" class="center">Affected Population')
+        ->not->toContain('>Total<')
+        ->not->toContain('CARLOS, Municipal')
+        ->not->toContain('band-sub">Evacuees')
+        ->not->toContain('band-sub">Affected Population')
         ->toContain('No. of Evac. Centers')
         ->toContain('Dead (persons)')
         ->toContain('Injured (persons)')
@@ -195,6 +206,41 @@ it('renders a version-1 revision from its stage-1 columns with sections unavaila
         ->toContain('Unavailable');
 });
 
+it('reproduces the frozen MDRRMO reference specimen', function () {
+    $reference = json_decode(
+        file_get_contents(base_path('tests/Fixtures/sitrep-mdrrmo-reference.json')),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+
+    Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
+    $event = FloodEvent::factory()->create();
+    $staff = User::factory()->staff()->create();
+
+    $this->travelTo(sitrepApiAt('2026-11-02 10:00:00'));
+
+    $id = $this->withToken(sitrepApiToken($staff))
+        ->postJson('/api/situational-reports', ['event_id' => $event->id])
+        ->json('data.id');
+
+    $html = $this->withToken(sitrepApiToken($staff))
+        ->get("/api/situational-reports/{$id}/document")
+        ->assertOk()
+        ->getContent();
+
+    foreach ($reference['required'] as $needle) {
+        expect($html)->toContain($needle);
+    }
+
+    foreach ($reference['forbidden'] as $needle) {
+        expect($html)->not->toContain($needle);
+    }
+
+    foreach ($reference['band_colors'] as $color) {
+        expect($html)->toContain($color);
+    }
+});
+
 it('downloads a DOCX built from the same frozen snapshot', function () {
     Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
     $event = FloodEvent::factory()->create();
@@ -211,7 +257,35 @@ it('downloads a DOCX built from the same frozen snapshot', function () {
         ->assertOk()
         ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
-    expect($response->streamedContent())->toStartWith('PK');
+    $package = $response->streamedContent();
+    expect($package)->toStartWith('PK');
+
+    // The memorandum must carry the template's tab stops (colon at 1418
+    // twips, value at 2268 with a hanging indent) and no period line; the
+    // window stays in the provenance annex only.
+    $file = tempnam(sys_get_temp_dir(), 'sitrep_docx_');
+    file_put_contents($file, $package);
+    $dir = $file.'_x';
+    $archive = new PclZip($file);
+    expect($archive->extract(PCLZIP_OPT_PATH, $dir))->not->toBe(0);
+    $xml = file_get_contents($dir.'/word/document.xml');
+    File::deleteDirectory($dir);
+    unlink($file);
+
+    $tabs = json_decode(
+        file_get_contents(base_path('tests/Fixtures/sitrep-mdrrmo-reference.json')),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    )['memorandum_tab_twips'];
+
+    expect($xml)->toContain('w:pos="'.$tabs['colon'].'"')
+        ->toContain('w:pos="'.$tabs['value'].'"')
+        ->toContain('w:hanging="'.$tabs['hanging'].'"')
+        ->toContain('>THRU<')
+        ->toContain('- Crops')
+        ->toContain('as of')
+        ->not->toContain('<w:t>Total</w:t>')
+        ->not->toContain('For the period');
 });
 
 it('rejects personal fields in supplement payloads at the input boundary', function () {

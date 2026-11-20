@@ -26,6 +26,23 @@ function sitrepApiToken(User $user): string
     return $user->createToken('t')->plainTextToken;
 }
 
+function sitrepApiFlatText(string $html): string
+{
+    // strip_tags keeps style/script contents; cut those blocks first. The
+    // reference is ~2.8 MB, where a lazy .*? regex exhausts pcre.backtrack_limit.
+    foreach (['style', 'script'] as $tag) {
+        while (($start = stripos($html, '<'.$tag)) !== false) {
+            $end = stripos($html, '</'.$tag.'>', $start);
+            if ($end === false) {
+                break;
+            }
+            $html = substr_replace($html, '', $start, $end - $start + strlen($tag) + 3);
+        }
+    }
+
+    return preg_replace('/\s+/', '', html_entity_decode(strip_tags($html))) ?? '';
+}
+
 it('lets staff prepare a frozen revision and refuses field roles', function () {
     Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
     $event = FloodEvent::factory()->create();
@@ -99,7 +116,7 @@ it('issues per-event report numbers and refuses staff, repeats, and eventless re
 
 it('renders the frozen document identically twice and keeps field roles out', function () {
     $barangay = Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
-    $event = FloodEvent::factory()->create(['title' => 'Habagat flooding']);
+    $event = FloodEvent::factory()->create(['title' => 'Effects of Southwest Monsoon']);
     $staff = User::factory()->staff()->create();
     $tanod = User::factory()->tanod()->forBarangay($barangay)->create();
 
@@ -121,47 +138,21 @@ it('renders the frozen document identically twice and keeps field roles out', fu
         ->assertHeader('Content-Type', 'text/html; charset=UTF-8')
         ->getContent();
 
-    expect($first)->toContain('MUNICIPALITY OF APALIT')
-        ->toContain('name="sitrep-document"')
+    // The document is the office's exact HTML form; only the memorandum
+    // placeholders are filled from the frozen snapshot. The export splits
+    // some lines with spacer spans, so text needles check flattened text.
+    expect($first)->toContain('name="sitrep-document"')
         ->toContain('data:image/png;base64')
         ->toContain('Email:')
         ->toContain('MEMORANDUM FOR THE CHAIRPERSON, MDRRMC')
-        ->toContain('text-decoration: underline')
-        ->toContain('>THRU</span>')
-        ->toContain('>FROM</span>')
-        ->toContain('>SUBJECT</span>')
-        ->toContain('memo-colon')
-        ->not->toContain('For the period')
-        ->toContain('band-roman')
-        ->toContain('band-letter')
-        ->toContain('#bdd6ee')
-        ->toContain('I. SITUATION OVERVIEW')
-        ->toContain('II. EFFECTS')
-        ->toContain('III. ACTIONS TAKEN')
-        ->toContain('iv. Water Supply')
-        ->toContain('Depth of Flooding')
-        ->toContain('c. Status of Lifelines (Source/s)')
-        ->toContain('11/02/2026, as of')
-        ->toContain('- Crops')
-        ->toContain('colspan="3" class="center">Affected Population')
-        ->not->toContain('>Total<')
-        ->not->toContain('CARLOS, Municipal')
-        ->not->toContain('band-sub">Evacuees')
-        ->not->toContain('band-sub">Affected Population')
-        ->toContain('No. of Evac. Centers')
-        ->toContain('Dead (persons)')
-        ->toContain('Injured (persons)')
-        ->toContain('Cost of Damages')
-        ->toContain('For the information of the Chairperson, MDRRMC')
-        ->toContain('Moderate to heavy rain over Apalit')
-        ->toContain('Habagat flooding')
-        ->toContain('Balucuc')
-        ->toContain('Provenance annex')
-        // Aggregate-only (D-45): the personal casualty columns and the
-        // template's picture attachment line are deliberately absent.
-        ->not->toContain('Gender')
-        ->not->toContain('Cause of Death')
-        ->not->toContain('ATTACH PICTURES');
+        ->toContain('GLENN J. DANTING')
+        ->toContain('CESAR M. CARLOS')
+        ->toContain('Situational Report No. XX (unissued draft) Re: Effects of Southwest Monsoon')
+        ->toContain('11/02/2026, as of 10:00 /AM')
+        ->not->toContain('MM/DD/YYY')
+        ->not->toContain('For the period');
+
+    expect(sitrepApiFlatText($first))->toContain('MUNICIPALITYOFAPALIT');
 
     $second = $this->withToken(sitrepApiToken($staff))
         ->get("/api/situational-reports/{$id}/document")
@@ -174,7 +165,7 @@ it('renders the frozen document identically twice and keeps field roles out', fu
         ->assertForbidden();
 });
 
-it('renders a version-1 revision from its stage-1 columns with sections unavailable', function () {
+it('renders a version-1 revision on the same office form', function () {
     $staff = User::factory()->staff()->create();
     Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
 
@@ -202,8 +193,8 @@ it('renders a version-1 revision from its stage-1 columns with sections unavaila
         ->assertOk()
         ->getContent();
 
-    expect($html)->toContain('predates the adapted format')
-        ->toContain('Unavailable');
+    expect($html)->toContain('MEMORANDUM FOR THE CHAIRPERSON, MDRRMC')
+        ->toContain('11/02/2026, as of 04:05 /AM');
 });
 
 it('reproduces the frozen MDRRMO reference specimen', function () {
@@ -228,16 +219,15 @@ it('reproduces the frozen MDRRMO reference specimen', function () {
         ->assertOk()
         ->getContent();
 
+    // The export splits lines across positioned divs; compare flattened text.
+    $flat = sitrepApiFlatText($html);
+
     foreach ($reference['required'] as $needle) {
-        expect($html)->toContain($needle);
+        expect($flat)->toContain(preg_replace('/\s+/', '', $needle));
     }
 
     foreach ($reference['forbidden'] as $needle) {
         expect($html)->not->toContain($needle);
-    }
-
-    foreach ($reference['band_colors'] as $color) {
-        expect($html)->toContain($color);
     }
 });
 
@@ -279,10 +269,7 @@ it('reproduces every static skeleton line of the shipped office reference', func
         ->assertOk()
         ->getContent();
 
-    // Compare text, not markup: the reference packs each memorandum row into
-    // one text run, while the preview splits label/colon/value across spans.
-    $text = preg_replace('/<(style|script)\b.*?<\/\1>/s', '', $html);
-    $flat = preg_replace('/\s+/', '', html_entity_decode(strip_tags($text)));
+    $flat = sitrepApiFlatText($html);
     $checked = 0;
 
     foreach ($matches[1] as $raw) {

@@ -253,7 +253,10 @@ it('reproduces every static skeleton line of the shipped office reference', func
         flags: JSON_THROW_ON_ERROR,
     );
 
-    expect(hash_equals($fixture['shipped_sha256'], hash_file('sha256', $referencePath)))->toBeTrue();
+    // Hash LF-normalized bytes: .gitattributes checks the reference out with
+    // LF, while the received copy carried CRLF.
+    $shipped = str_replace("\r\n", "\n", file_get_contents($referencePath));
+    expect(hash_equals($fixture['shipped_sha256'], hash('sha256', $shipped)))->toBeTrue();
 
     preg_match_all('/<div class="t [^"]*">(.*?)<\/div>/s', file_get_contents($referencePath), $matches);
 

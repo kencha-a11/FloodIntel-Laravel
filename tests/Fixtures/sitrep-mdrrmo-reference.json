@@ -3,7 +3,7 @@
   "source_sha256": "1024163fea7abc103bdc115ac3531fe4daab0fb36ceb6004e866d70e14733e52",
   "sanitized_copy": "tools/Situational_Report_Sample/PDRRMO SITREP TEMPLATE (html reference, scripts removed).html",
   "shipped_reference": "resources/sitrep/reference/mdrrmo-sitrep-template.html",
-  "shipped_sha256": "6fe6ec34c805e4c169938f482127f453e0ebe79e6e3d2578267e26733bec010b",
+  "shipped_sha256": "f2996fc82d16cd22486f159a6df391dc47c817f764cdcaa24cd6fde3d868db9c",
   "note": "Static skeleton of the office form. Placeholders (XX, MM/DD/YYY, n/a, Sulipan) are NOT required: the generator fills them from frozen data or renders Unavailable. Deliberate D-45/owner deviations: aggregate-only casualties (no Name/Gender/Age/Address/Cause columns), no ATTACH PICTURES section, lifeline iv named Water Supply, unissued drafts marked in SUBJECT.",
   "band_colors": [
     "#bdd6ee",

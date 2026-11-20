@@ -9,7 +9,6 @@ use App\Http\Resources\SituationalReportResource;
 use App\Models\SituationalReport;
 use App\Models\SituationalReportRun;
 use App\Services\SitrepDocxRenderer;
-use App\Services\SitrepReferenceHtmlRenderer;
 use App\Services\SituationalReportAggregator;
 use App\Services\SituationalReportIssuer;
 use App\Support\ConsolidationWindow;
@@ -113,15 +112,15 @@ class SituationalReportController extends Controller
     }
 
     /**
-     * The document as the office's exact HTML form (owner directive,
-     * 2026-11-20), with the memorandum filled from the frozen snapshot. The
-     * client fetches this with its bearer token and renders it in a sandboxed
-     * frame; there is no public or tokenized link (FR-86).
+     * The frozen document as printable HTML (D-43). The client fetches this
+     * with its bearer token and renders it in a sandboxed frame; there is no
+     * public or tokenized link (FR-86).
      */
-    public function document(SituationalReport $situationalReport, SitrepReferenceHtmlRenderer $renderer): Response
+    public function document(SituationalReport $situationalReport): Response
     {
-        return response($renderer->render(SitrepDocument::build($situationalReport)))
-            ->header('Content-Type', 'text/html; charset=UTF-8');
+        return response()->view('sitrep.document', [
+            'doc' => SitrepDocument::build($situationalReport),
+        ]);
     }
 
     public function docx(SituationalReport $situationalReport, SitrepDocxRenderer $renderer): StreamedResponse

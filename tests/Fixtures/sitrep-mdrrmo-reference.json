@@ -4,7 +4,12 @@
   "sanitized_copy": "tools/Situational_Report_Sample/PDRRMO SITREP TEMPLATE (html reference, scripts removed).html",
   "shipped_reference": "resources/sitrep/reference/mdrrmo-sitrep-template.html",
   "shipped_sha256": "f2996fc82d16cd22486f159a6df391dc47c817f764cdcaa24cd6fde3d868db9c",
-  "note": "The office's exact HTML form IS the served document (owner directive 2026-11-20): only the memorandum placeholder runs (SUBJECT, DATE, example event name) are filled from the frozen snapshot. Required strings are checked against flattened text because the pdf2htmlEX export splits lines across positioned divs; some labels (iv. Water Supply, Dead/Injured columns, closing parens) live in the page images, not the text layer. D-45 presentation reversal: the blank personal casualty columns and ATTACH PICTURES line are part of the exact form; the input guard still rejects personal payload data, and live figures remain in the DOCX export.",
+  "note": "Static skeleton of the office form. Placeholders (XX, MM/DD/YYY, n/a, Sulipan) are NOT required: the generator fills them from frozen data or renders Unavailable. Deliberate D-45/owner deviations: aggregate-only casualties (no Name/Gender/Age/Address/Cause columns), no ATTACH PICTURES section, lifeline iv named Water Supply, unissued drafts marked in SUBJECT.",
+  "band_colors": [
+    "#bdd6ee",
+    "#a8d08d",
+    "#c5e0b3"
+  ],
   "memorandum_tab_twips": {
     "colon": 1440,
     "value": 2268,
@@ -27,6 +32,7 @@
     "i. Roads and Bridges",
     "ii. Power Interruption",
     "iii. Communications",
+    "iv. Water Supply",
     "d. Pre-emptive Evacuation",
     "e. Affected Population",
     "f. Casualties (Dead / Injured)",
@@ -63,6 +69,8 @@
     "No. of HH",
     "No. of Families",
     "No. of Individuals",
+    "Dead (persons)",
+    "Injured (persons)",
     "No. of Partially Damaged",
     "No. of Totally Damaged",
     "Damaged",
@@ -76,7 +84,7 @@
     "- HVCC",
     "- Fisheries",
     "- Other Agricultural Facilities / Equipment",
-    "Other Properties",
+    "Other Properties (Private Properties)",
     "Incident / Activity",
     "Status",
     "Agency / Office",
@@ -85,9 +93,14 @@
     "Municipal DRRM Officer"
   ],
   "forbidden": [
-    "MM/DD/YYY",
-    "Southwest Monsoon",
-    "Situational Report No. XX Re:",
-    "For the period"
+    "ATTACH PICTURES",
+    ">Name<",
+    ">Gender<",
+    ">Age<",
+    ">Address<",
+    "Cause /",
+    ">Total<",
+    "For the period",
+    "CARLOS, Municipal"
   ]
 }

@@ -8,50 +8,75 @@
 <meta name="sitrep-document" content="{{ $doc['meta']['format_version'] }}">
 <title>SITREP — {{ $doc['meta']['cutoff_label'] }} (Revision {{ $doc['meta']['revision'] }})</title>
 <style>
+    /* Geometry and type measured from the office PDF export
+       (resources/sitrep/reference/mdrrmo-sitrep-template.html, pdf2htmlEX):
+       8.5in x 13in page, 0.5in margins, Century Gothic body at 11pt/12pt,
+       Times New Roman letterhead, 1.5pt letterhead rule, 1pt memorandum rule,
+       flush-stacked shaded bands indented 18/54/99pt, fixed-width tables
+       indented 55.5pt (lettered sections) or 91.5pt (sub-sections). */
     @page { size: 8.5in 13in; margin: 0.5in; }
     * { box-sizing: border-box; }
-    body { font-family: 'Century Gothic', 'Apple Gothic', 'URW Gothic', sans-serif; font-size: 12pt; color: #000; margin: 0; padding: 24px; background: #fff; }
-    .sheet { max-width: 7.5in; margin: 0 auto; }
-    /* Letterhead mirrors word/header1.xml: seals, Times New Roman 10pt,
-       and a thick rule closing the block. */
-    .letterhead { font-family: 'Times New Roman', Times, serif; font-size: 10pt; text-align: center; line-height: 1.3; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
-    .letterhead .municipality { font-weight: bold; }
-    .letterhead .unit { font-weight: bold; }
-    .seals { display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 6px; }
-    .seals img { height: 78px; width: auto; }
-    /* Memorandum: underlined addressee, label/value columns, thin rule. */
-    .memorandum { border-bottom: 1px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
-    .memorandum .addressee { font-weight: bold; text-decoration: underline; margin: 6px 0; }
-    /* Template tab stops: label, colon column at 1440 twips, value column at
-       2268 twips; rows sit flush with no inter-row whitespace. */
-    .memo-row { display: flex; margin: 0; }
+    body { font-family: 'Century Gothic', 'Apple Gothic', 'URW Gothic', sans-serif; font-size: 11pt; color: #000; margin: 0; padding: 0.5in; background: #fff; }
+    .sheet { max-width: 542.5pt; margin: 0 auto; }
+    /* Letterhead: seals, Times New Roman; country/province/municipality/unit
+       bold at 10/10/11/12pt, address italic, email underlined; 1.5pt rule. */
+    .letterhead { font-family: 'Times New Roman', Times, serif; font-size: 10pt; font-weight: bold; text-align: center; line-height: 1.35; border-bottom: 1.5pt solid #000; padding-bottom: 5pt; margin-bottom: 10pt; }
+    .letterhead .municipality { font-size: 11pt; }
+    .letterhead .unit { font-size: 12pt; }
+    .letterhead .address { font-weight: normal; font-style: italic; }
+    .letterhead .email { font-weight: normal; text-decoration: underline; }
+    .seals { display: flex; justify-content: center; align-items: center; gap: 28px; margin-bottom: 4pt; }
+    .seals img { height: 65px; width: auto; }
+    /* Memorandum: 12pt, underlined addressee, regular labels with bold values,
+       tab stops colon at 1440 twips and value at 2268 twips, 8pt row spacing,
+       1pt rule closing the block. */
+    .memorandum { font-size: 12pt; line-height: 15.9pt; border-bottom: 1pt solid #000; padding-bottom: 4pt; margin-bottom: 0; }
+    .memorandum .addressee { font-weight: bold; text-decoration: underline; margin: 0 0 8pt; }
+    .memo-row { display: flex; margin: 0 0 8pt; }
+    .memo-row.memo-last { margin-bottom: 0; }
     .memo-label { flex: 0 0 96px; }
     .memo-colon { flex: 0 0 55px; }
     .memo-value { flex: 1; font-weight: bold; }
-    /* Section bands mirror the template shading: Roman = blue, lettered =
-       green, sub-subsection = light green. */
-    .band { font-size: 12pt; font-weight: bold; margin: 12px 0 6px; padding: 3px 8px; }
-    .band-roman { background: #bdd6ee; }
-    .band-letter { background: #a8d08d; }
-    .band-sub { background: #c5e0b3; }
-    h2.band { margin: 16px 0 6px; }
-    p { margin: 4px 0; line-height: 1.4; }
-    table { border-collapse: collapse; width: 100%; margin: 6px 0; }
-    th, td { border: 1px solid #000; padding: 3px 5px; text-align: left; vertical-align: top; }
-    th { background: #fff; font-weight: bold; }
+    /* Section bands: 11pt bold on the template shading (Roman = blue, lettered
+       = green, sub-subsection = light green), 14.5pt tall, stacked flush. */
+    .band { font-size: 11pt; font-weight: bold; line-height: 10.5pt; margin: 0; padding: 2pt 2pt 2pt 1.5pt; }
+    .band-roman { background: #bdd6ee; margin-left: 18pt; margin-top: 12pt; }
+    .band-letter { background: #a8d08d; margin-left: 54pt; margin-top: 12pt; }
+    .band-sub { background: #c5e0b3; margin-left: 99pt; }
+    .band-roman + .band-letter { margin-top: 0; }
+    h2.band, h3.band, h4.band { margin-top: 0; margin-bottom: 0; }
+    h2.band-roman { margin-top: 12pt; }
+    h3.band-letter { margin-top: 12pt; }
+    h2.band-roman + h3.band-letter { margin-top: 0; }
+    p { margin: 6pt 0; line-height: 1.4; }
+    .para-indent { margin-left: 55.5pt; }
+    /* Tables: hairline borders, centred bold headers, fixed template widths,
+       37.5pt single-row headers, 28pt stacked header rows, 23pt body rows. */
+    table { border-collapse: collapse; margin: 8pt 0 0 55.5pt; max-width: calc(100% - 55.5pt); font-size: 11pt; }
+    table.tbl-sub { margin-left: 91.5pt; max-width: calc(100% - 91.5pt); }
+    th, td { border: 0.5pt solid #000; padding: 2pt 5pt; line-height: 1.4; text-align: left; vertical-align: middle; }
+    th { background: #fff; font-weight: bold; text-align: center; }
+    thead tr:only-child { height: 37.5pt; }
+    thead tr { height: 28pt; }
+    tbody tr { height: 23pt; }
     .num { text-align: right; }
     .center { text-align: center; }
     .unavailable { color: #444; font-style: italic; }
-    .source { font-size: 10pt; color: #333; margin: 2px 0 8px; font-style: italic; }
-    .group-row td { background: #f5f5f5; font-weight: bold; }
-    td.indent { padding-left: 18px; }
-    .signatory { margin-top: 36px; text-align: right; }
-    .signatory .name { font-weight: bold; text-transform: uppercase; }
-    .closing { margin-top: 18px; }
-    .annex { margin-top: 24px; border-top: 2px solid #000; padding-top: 8px; }
+    /* Source/s lines: bold italic 10pt, indented past the lettered tables. */
+    .source { font-size: 10pt; font-weight: bold; font-style: italic; color: #000; margin: 6pt 0 0 73.5pt; }
+    .source-flush { margin-left: 55.5pt; }
+    .group-row td { font-weight: normal; }
+    td.indent { padding-left: 22pt; }
+    .closing { font-weight: bold; margin-top: 24pt; }
+    .signatory { margin-top: 30pt; text-align: center; }
+    .signatory .name { font-weight: bold; font-size: 12pt; text-transform: uppercase; }
+    .signatory .title { font-style: italic; }
+    .signatory .source { margin-left: 0; }
+    .annex { margin-top: 24pt; border-top: 1.5pt solid #000; padding-top: 8pt; }
     .annex h2 { font-size: 11pt; }
     .annex table, .annex p { font-size: 10pt; }
-    .adaptation { font-size: 10pt; border: 1px solid #000; padding: 6px; margin: 10px 0; }
+    .annex table { margin-left: 0; max-width: 100%; }
+    .adaptation { font-size: 10pt; border: 1px solid #000; padding: 6pt; margin: 10pt 0; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
     @media print { body { padding: 0; } .sheet { max-width: none; } }
@@ -77,8 +102,8 @@
         <div>{{ $doc['office']['province'] }}</div>
         <div class="municipality">{{ $doc['office']['municipality'] }}</div>
         <div class="unit">{{ $doc['office']['unit'] }}</div>
-        <div>{{ $doc['office']['address'] }}</div>
-        <div>Email: {{ $doc['office']['email'] }}</div>
+        <div class="address">{{ $doc['office']['address'] }}</div>
+        <div class="email">Email: {{ $doc['office']['email'] }}</div>
     </div>
 
     <div class="memorandum">
@@ -87,7 +112,7 @@
         <div class="memo-row"><span class="memo-label">FROM</span><span class="memo-colon">:</span><span class="memo-value">{{ $doc['office']['signatory'] }}</span></div>
         <div class="memo-row"><span class="memo-label">SUBJECT</span><span class="memo-colon">:</span><span class="memo-value">Situational Report No. {{ $doc['issuance']['report_number'] ?? 'XX (unissued draft)' }} Re:
             @if ($doc['event']){{ $doc['event']['title'] }}@else<span class="unavailable">No flood event linked to this revision</span>@endif</span></div>
-        <div class="memo-row"><span class="memo-label">DATE</span><span class="memo-colon">:</span><span class="memo-value">{{ $doc['meta']['snapshot_as_of'] }}</span></div>
+        <div class="memo-row memo-last"><span class="memo-label">DATE</span><span class="memo-colon">:</span><span class="memo-value">{{ $doc['meta']['snapshot_as_of'] }}</span></div>
     </div>
 
     <div class="adaptation">{{ $doc['adaptation'] }}</div>
@@ -95,7 +120,7 @@
     <h2 class="band band-roman">I. SITUATION OVERVIEW</h2>
     <h3 class="band band-letter">a. Weather Condition</h3>
     @forelse ($doc['sections']['weather'] as $row)
-        <p>{{ $row['payload']['summary'] ?? '' }}</p>
+        <p class="para-indent">{{ $row['payload']['summary'] ?? '' }}</p>
         <p class="source">Source/s: {{ $row['source'] ?? 'Unavailable' }}@if ($row['observed_at']) — observed {{ $row['observed_at'] }}@endif</p>
     @empty
         <p class="unavailable">Weather bulletin: unavailable — no reviewed supplement was frozen into this revision.</p>
@@ -104,7 +129,8 @@
     <h2 class="band band-roman">II. EFFECTS</h2>
 
     <h3 class="band band-letter">a. Flooding Situation</h3>
-    <table>
+    <table style="width: 460pt;">
+        <colgroup><col style="width: 34.5%;"><col style="width: 37.2%;"><col style="width: 28.3%;"></colgroup>
         <thead>
             <tr>
                 <th>City/Municipality/Barangay</th>
@@ -125,7 +151,8 @@
     <p class="source">Source/s: MDRRMO Site Inspection &amp; Barangay DRRM. {{ $doc['stage_two']['reason'] }} Depth is a qualitative tier from validated reports, not measured depth.</p>
 
     <h3 class="band band-letter">b. Pampanga River Basin Assessment Levels / Condition of Dikes and Creeks</h3>
-    <table>
+    <table style="width: 460pt;">
+        <colgroup><col style="width: 17.6%;"><col style="width: 17.4%;"><col style="width: 29.8%;"><col style="width: 14.7%;"><col style="width: 20.5%;"></colgroup>
         <thead>
             <tr>
                 <th>Station</th>
@@ -157,7 +184,8 @@
     @endphp
 
     <h4 class="band band-sub">i. Roads and Bridges</h4>
-    <table>
+    <table class="tbl-sub" style="width: 362pt;">
+        <colgroup><col style="width: 29.6%;"><col style="width: 35.4%;"><col style="width: 35%;"></colgroup>
         <thead>
             <tr><th>Roads / Bridges</th><th>Situation/Status</th><th>Actions Taken/Remarks</th></tr>
         </thead>
@@ -176,7 +204,8 @@
 
     @foreach (['power' => 'ii. Power Interruption', 'communications' => 'iii. Communications', 'water_supply' => 'iv. Water Supply'] as $kind => $heading)
         <h4 class="band band-sub">{{ $heading }}</h4>
-        <table>
+        <table class="tbl-sub" style="width: 362pt;">
+            <colgroup><col style="width: 31.7%;"><col style="width: 24.8%;"><col style="width: 21.9%;"><col style="width: 21.6%;"></colgroup>
             <thead>
                 <tr>
                     <th>Affected City/Municipality/Barangay</th>
@@ -202,7 +231,8 @@
     <p class="source">Source/s: MDRRMO &amp; utility offices. Interruption/restoration time columns are unavailable — no reviewed time fields were frozen into this revision.</p>
 
     <h3 class="band band-letter">d. Pre-emptive Evacuation</h3>
-    <table>
+    <table style="width: 487pt;">
+        <colgroup><col style="width: 17.6%;"><col style="width: 12.9%;"><col style="width: 11.1%;"><col style="width: 13.9%;"><col style="width: 15%;"><col style="width: 29.5%;"></colgroup>
         <thead>
             <tr>
                 <th>City/Municipality/Barangay</th>
@@ -231,7 +261,8 @@
     <p class="source">Source/s: {{ $doc['sections']['evacuation'][0]['source'] ?? 'Unavailable' }}.</p>
 
     <h3 class="band band-letter">e. Affected Population</h3>
-    <table>
+    <table style="width: 478pt;">
+        <colgroup><col style="width: 17.2%;"><col style="width: 11.3%;"><col style="width: 19.8%;"><col style="width: 20.7%;"><col style="width: 15.1%;"><col style="width: 15.9%;"></colgroup>
         <thead>
             <tr>
                 <th rowspan="3">Barangay</th>
@@ -266,7 +297,8 @@
         </tbody>
     </table>
 
-    <table>
+    <table style="width: 486pt;">
+        <colgroup><col style="width: 16.7%;"><col style="width: 27.8%;"><col style="width: 27.8%;"><col style="width: 27.7%;"></colgroup>
         <thead>
             <tr>
                 <th rowspan="2">Barangay</th>
@@ -289,12 +321,13 @@
             @endforeach
         </tbody>
     </table>
-    <p class="source">Source/s: MSWD/BDRRMC. {{ $doc['stage_two']['reason'] }} Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.
+    <p class="source source-flush">Source/s: MSWD/BDRRMC. {{ $doc['stage_two']['reason'] }} Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.
         Municipal totals: @if ($doc['sections']['evacuees'] === [])<span class="unavailable">Unavailable</span>@else{{ collect($doc['sections']['evacuees'])->sum(fn ($r) => (int) ($r['payload']['inside'] ?? 0)).' inside / '.collect($doc['sections']['evacuees'])->sum(fn ($r) => (int) ($r['payload']['outside'] ?? 0)).' outside evacuees' }}@endif;
         @if (is_null($doc['stage_two']['affected_families']))<span class="unavailable">Unavailable</span>@else{{ $doc['stage_two']['affected_families'].' families / '.$doc['stage_two']['affected_individuals'].' individuals' }}@endif affected.</p>
 
     <h3 class="band band-letter">f. Casualties (Dead / Injured)</h3>
-    <table>
+    <table style="width: 396.5pt;">
+        <colgroup><col style="width: 40%;"><col style="width: 30%;"><col style="width: 30%;"></colgroup>
         <thead>
             <tr><th>City/Municipality/Barangay</th><th class="num">Dead (persons)</th><th class="num">Injured (persons)</th></tr>
         </thead>
@@ -313,7 +346,8 @@
     <p class="source">Source/s: {{ $doc['sections']['casualties'][0]['source'] ?? 'Unavailable' }}. Aggregate-only (D-45): no individual identities.</p>
 
     <h3 class="band band-letter">g. Damaged Houses</h3>
-    <table>
+    <table style="width: 395pt;">
+        <colgroup><col style="width: 33.3%;"><col style="width: 33.4%;"><col style="width: 33.3%;"></colgroup>
         <thead>
             <tr><th>Barangay</th><th class="num">No. of Partially Damaged</th><th class="num">No. of Totally Damaged</th></tr>
         </thead>
@@ -332,7 +366,8 @@
     <p class="source">Source/s: M/BDRRMO.</p>
 
     <h3 class="band band-letter">h. Cost of Damages</h3>
-    <table>
+    <table style="width: 486pt;">
+        <colgroup><col style="width: 36.7%;"><col style="width: 25.5%;"><col style="width: 37.8%;"></colgroup>
         <thead>
             <tr><th>Damaged</th><th class="num">Cost of Damages</th><th>Remarks</th></tr>
         </thead>
@@ -353,7 +388,8 @@
     <p class="source">Source/s: DA Office / MDRRMO assessment. Fixed template taxonomy; a category with no reviewed supplement renders unavailable.</p>
 
     <h3 class="band band-letter">i. Other Incidents/Activities Monitored</h3>
-    <table>
+    <table style="width: 395.5pt;">
+        <colgroup><col style="width: 33%;"><col style="width: 34%;"><col style="width: 33%;"></colgroup>
         <thead>
             <tr><th>Incident / Activity</th><th>Status</th><th>Remarks</th></tr>
         </thead>
@@ -371,7 +407,8 @@
     </table>
 
     <h3 class="band band-letter">j. Cost/Kind of Assistance Extended</h3>
-    <table>
+    <table style="width: 395.5pt;">
+        <colgroup><col style="width: 33%;"><col style="width: 34%;"><col style="width: 33%;"></colgroup>
         <thead>
             <tr><th>Agency / Office</th><th>Cost/Kind of Assistance</th><th>Remarks</th></tr>
         </thead>
@@ -390,7 +427,7 @@
 
     <h2 class="band band-roman">III. ACTIONS TAKEN</h2>
     @forelse ($doc['sections']['actions'] as $row)
-        <p>{{ $loop->iteration }}. {{ $row['payload']['action'] ?? '' }}</p>
+        <p class="para-indent">{{ $loop->iteration }}. {{ $row['payload']['action'] ?? '' }}</p>
         <p class="source">Source/s: {{ $row['source'] ?? 'Unavailable' }}@if ($row['observed_at']) — {{ $row['observed_at'] }}@endif</p>
     @empty
         <p class="unavailable">Unavailable — no reviewed action supplement was frozen into this revision.</p>
@@ -400,7 +437,7 @@
 
     <div class="signatory">
         <p class="name">{{ $doc['office']['signatory'] }}</p>
-        <p>{{ $doc['office']['signatory_title'] }}</p>
+        <p class="title">{{ $doc['office']['signatory_title'] }}</p>
         @if ($doc['issuance'])
             <p class="source">Issued by {{ $doc['issuance']['issued_by_name'] }} ({{ $doc['issuance']['issued_by_role'] }}) — {{ $doc['issuance']['issued_at'] }}</p>
         @else

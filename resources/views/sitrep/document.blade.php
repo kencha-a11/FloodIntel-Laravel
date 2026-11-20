@@ -12,23 +12,35 @@
     * { box-sizing: border-box; }
     body { font-family: 'Century Gothic', 'Apple Gothic', 'URW Gothic', sans-serif; font-size: 12pt; color: #000; margin: 0; padding: 24px; background: #fff; }
     .sheet { max-width: 7.5in; margin: 0 auto; }
-    .letterhead { text-align: center; line-height: 1.35; margin-bottom: 12px; }
+    /* Letterhead mirrors word/header1.xml: seals, Times New Roman 10pt,
+       and a thick rule closing the block. */
+    .letterhead { font-family: 'Times New Roman', Times, serif; font-size: 10pt; text-align: center; line-height: 1.3; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
     .letterhead .municipality { font-weight: bold; }
     .letterhead .unit { font-weight: bold; }
-    .memorandum { margin: 12px 0; }
-    .memorandum .addressee { font-weight: bold; margin: 6px 0; }
-    h2 { font-size: 12pt; margin: 16px 0 6px; }
-    h3 { font-size: 12pt; margin: 12px 0 4px; }
-    h4 { font-size: 12pt; margin: 8px 0 4px; }
+    .seals { display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 6px; }
+    .seals img { height: 78px; width: auto; }
+    /* Memorandum: underlined addressee, label/value columns, thin rule. */
+    .memorandum { border-bottom: 1px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+    .memorandum .addressee { font-weight: bold; text-decoration: underline; margin: 6px 0; }
+    .memo-row { display: flex; margin: 3px 0; }
+    .memo-label { flex: 0 0 92px; }
+    .memo-value { flex: 1; font-weight: bold; }
+    .meta-line { margin: 2px 0; }
+    /* Section bands mirror the template shading: Roman = blue, lettered =
+       green, sub-subsection = light green. */
+    .band { font-size: 12pt; font-weight: bold; margin: 12px 0 6px; padding: 3px 8px; }
+    .band-roman { background: #bdd6ee; }
+    .band-letter { background: #a8d08d; }
+    .band-sub { background: #c5e0b3; }
+    h2.band { margin: 16px 0 6px; }
     p { margin: 4px 0; line-height: 1.4; }
     table { border-collapse: collapse; width: 100%; margin: 6px 0; }
     th, td { border: 1px solid #000; padding: 3px 5px; text-align: left; vertical-align: top; }
-    th { background: #eee; font-weight: bold; }
+    th { background: #fff; font-weight: bold; }
     .num { text-align: right; }
     .center { text-align: center; }
-    .meta-line { margin: 2px 0; }
     .unavailable { color: #444; font-style: italic; }
-    .source { font-size: 10pt; color: #333; margin: 2px 0 8px; }
+    .source { font-size: 10pt; color: #333; margin: 2px 0 8px; font-style: italic; }
     .group-row td { background: #f5f5f5; font-weight: bold; }
     td.indent { padding-left: 18px; }
     .signatory { margin-top: 36px; text-align: right; }
@@ -46,30 +58,41 @@
 <body>
 <div class="sheet">
 
+    @php
+        // Inline the office seals as data URIs so the framed document is
+        // self-contained (the preview CSP allows img-src data:) and renders
+        // identically on every read.
+        $seal = fn (string $file): string => 'data:image/png;base64,'.base64_encode(file_get_contents(resource_path('sitrep/'.$file)));
+    @endphp
+
     <div class="letterhead">
+        <div class="seals">
+            <img src="{{ $seal('seal_apalit.png') }}" alt="Seal of the Municipality of Apalit">
+            <img src="{{ $seal('seal_philippines.png') }}" alt="Philippine national emblem">
+            <img src="{{ $seal('seal_mdrrmo.png') }}" alt="MDRRMO Apalit emblem">
+        </div>
         <div>{{ $doc['office']['country'] }}</div>
         <div>{{ $doc['office']['province'] }}</div>
         <div class="municipality">{{ $doc['office']['municipality'] }}</div>
         <div class="unit">{{ $doc['office']['unit'] }}</div>
         <div>{{ $doc['office']['address'] }}</div>
-        <div>{{ $doc['office']['email'] }}</div>
+        <div>Email: {{ $doc['office']['email'] }}</div>
     </div>
 
     <div class="memorandum">
         <p class="addressee">MEMORANDUM FOR THE CHAIRPERSON, MDRRMC</p>
-        <p class="meta-line"><strong>THRU:</strong> {{ $doc['office']['thru'] }}</p>
-        <p class="meta-line"><strong>FROM:</strong> {{ $doc['office']['signatory'] }}, {{ $doc['office']['signatory_title'] }}</p>
-        <p class="meta-line"><strong>SUBJECT:</strong> Situational Report No. {{ $doc['issuance']['report_number'] ?? 'XX (unissued draft)' }} Re:
-            @if ($doc['event']){{ $doc['event']['title'] }}@else<span class="unavailable">No flood event linked to this revision</span>@endif
-        </p>
-        <p class="meta-line"><strong>DATE:</strong> {{ $doc['meta']['snapshot_at'] }} ({{ $doc['meta']['timezone'] }})</p>
+        <div class="memo-row"><span class="memo-label">THRU:</span><span class="memo-value">{{ $doc['office']['thru'] }}</span></div>
+        <div class="memo-row"><span class="memo-label">FROM:</span><span class="memo-value">{{ $doc['office']['signatory'] }}, {{ $doc['office']['signatory_title'] }}</span></div>
+        <div class="memo-row"><span class="memo-label">SUBJECT:</span><span class="memo-value">Situational Report No. {{ $doc['issuance']['report_number'] ?? 'XX (unissued draft)' }} Re:
+            @if ($doc['event']){{ $doc['event']['title'] }}@else<span class="unavailable">No flood event linked to this revision</span>@endif</span></div>
+        <div class="memo-row"><span class="memo-label">DATE:</span><span class="memo-value">{{ $doc['meta']['snapshot_at'] }} ({{ $doc['meta']['timezone'] }})</span></div>
         <p class="meta-line">For the period {{ $doc['meta']['window_starts_at'] }} to {{ $doc['meta']['window_ends_at'] }}</p>
     </div>
 
     <div class="adaptation">{{ $doc['adaptation'] }}</div>
 
-    <h2>I. SITUATION OVERVIEW</h2>
-    <h3>Weather Condition</h3>
+    <h2 class="band band-roman">I. SITUATION OVERVIEW</h2>
+    <h3 class="band band-letter">a. Weather Condition</h3>
     @forelse ($doc['sections']['weather'] as $row)
         <p>{{ $row['payload']['summary'] ?? '' }}</p>
         <p class="source">Source/s: {{ $row['source'] ?? 'Unavailable' }}@if ($row['observed_at']) — observed {{ $row['observed_at'] }}@endif</p>
@@ -77,9 +100,9 @@
         <p class="unavailable">Weather bulletin: unavailable — no reviewed supplement was frozen into this revision.</p>
     @endforelse
 
-    <h2>II. EFFECTS</h2>
+    <h2 class="band band-roman">II. EFFECTS</h2>
 
-    <h3>a. Flooding Situation</h3>
+    <h3 class="band band-letter">a. Flooding Situation</h3>
     <table>
         <thead>
             <tr>
@@ -100,7 +123,7 @@
     </table>
     <p class="source">Source/s: MDRRMO Site Inspection &amp; Barangay DRRM. {{ $doc['stage_two']['reason'] }} Depth is a qualitative tier from validated reports, not measured depth.</p>
 
-    <h3>b. Pampanga River Basin Assessment Levels / Condition of Dikes and Creeks</h3>
+    <h3 class="band band-letter">b. Pampanga River Basin Assessment Levels / Condition of Dikes and Creeks</h3>
     <table>
         <thead>
             <tr>
@@ -127,12 +150,12 @@
     </table>
     <p class="source">Source/s: Barangay DRRM. Alert/Alarm/Critical threshold columns are unavailable — no reviewed threshold supplement was frozen into this revision.</p>
 
-    <h3>c. Status of Lifelines</h3>
+    <h3 class="band band-letter">c. Status of Lifelines</h3>
     @php
         $lifelines = collect($doc['sections']['lifeline'])->groupBy(fn ($row) => $row['payload']['kind'] ?? 'other');
     @endphp
 
-    <h4>i. Roads and Bridges</h4>
+    <h4 class="band band-sub">i. Roads and Bridges</h4>
     <table>
         <thead>
             <tr><th>Roads / Bridges</th><th>Situation/Status</th><th>Actions Taken/Remarks</th></tr>
@@ -151,7 +174,7 @@
     </table>
 
     @foreach (['power' => 'ii. Power Interruption', 'communications' => 'iii. Communications', 'water_supply' => 'iv. Water Supply'] as $kind => $heading)
-        <h4>{{ $heading }}</h4>
+        <h4 class="band band-sub">{{ $heading }}</h4>
         <table>
             <thead>
                 <tr>
@@ -177,7 +200,7 @@
     @endforeach
     <p class="source">Source/s: MDRRMO &amp; utility offices. Interruption/restoration time columns are unavailable — no reviewed time fields were frozen into this revision.</p>
 
-    <h3>d. Pre-emptive Evacuation</h3>
+    <h3 class="band band-letter">d. Pre-emptive Evacuation</h3>
     <table>
         <thead>
             <tr>
@@ -205,8 +228,8 @@
         </tbody>
     </table>
 
-    <h3>e. Affected Population</h3>
-    <p><strong>Evacuees</strong></p>
+    <h3 class="band band-letter">e. Affected Population</h3>
+    <h4 class="band band-sub">Evacuees</h4>
     <table>
         <thead>
             <tr>
@@ -250,7 +273,7 @@
         </tbody>
     </table>
 
-    <p><strong>Affected Population</strong></p>
+    <h4 class="band band-sub">Affected Population</h4>
     <table>
         <thead>
             <tr>
@@ -279,7 +302,7 @@
     </table>
     <p class="source">Source/s: MSWD/BDRRMC. {{ $doc['stage_two']['reason'] }} Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.</p>
 
-    <h3>f. Casualties (Dead / Injured)</h3>
+    <h3 class="band band-letter">f. Casualties (Dead / Injured)</h3>
     <table>
         <thead>
             <tr><th>City/Municipality/Barangay</th><th class="num">Dead (persons)</th><th class="num">Injured (persons)</th></tr>
@@ -297,7 +320,7 @@
         </tbody>
     </table>
 
-    <h3>g. Damaged Houses</h3>
+    <h3 class="band band-letter">g. Damaged Houses</h3>
     <table>
         <thead>
             <tr><th>Barangay</th><th class="num">No. of Partially Damaged</th><th class="num">No. of Totally Damaged</th></tr>
@@ -316,7 +339,7 @@
     </table>
     <p class="source">Source/s: M/BDRRMO.</p>
 
-    <h3>h. Cost of Damages</h3>
+    <h3 class="band band-letter">h. Cost of Damages</h3>
     <table>
         <thead>
             <tr><th>Damaged</th><th class="num">Cost of Damages</th><th>Remarks</th></tr>
@@ -337,7 +360,7 @@
     </table>
     <p class="source">Source/s: DA Office / MDRRMO assessment. Fixed template taxonomy; a category with no reviewed supplement renders unavailable.</p>
 
-    <h3>i. Other Incidents/Activities Monitored</h3>
+    <h3 class="band band-letter">i. Other Incidents/Activities Monitored</h3>
     <table>
         <thead>
             <tr><th>Incident / Activity</th><th>Status</th><th>Remarks</th></tr>
@@ -355,7 +378,7 @@
         </tbody>
     </table>
 
-    <h3>j. Cost/Kind of Assistance Extended</h3>
+    <h3 class="band band-letter">j. Cost/Kind of Assistance Extended</h3>
     <table>
         <thead>
             <tr><th>Agency / Office</th><th>Cost/Kind of Assistance</th><th>Remarks</th></tr>
@@ -373,7 +396,7 @@
         </tbody>
     </table>
 
-    <h2>III. ACTIONS TAKEN</h2>
+    <h2 class="band band-roman">III. ACTIONS TAKEN</h2>
     @forelse ($doc['sections']['actions'] as $row)
         <p>{{ $loop->iteration }}. {{ $row['payload']['action'] ?? '' }}</p>
         <p class="source">Source/s: {{ $row['source'] ?? 'Unavailable' }}@if ($row['observed_at']) — {{ $row['observed_at'] }}@endif</p>

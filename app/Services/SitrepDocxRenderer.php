@@ -16,11 +16,14 @@ use PhpOffice\PhpWord\SimpleType\TblWidth;
  *
  * Renders the same frozen view-model as the Blade preview — never a live
  * aggregate — reproducing the MDRRMO memorandum format on long-bond paper
- * (8.5 × 13 in) with 0.5 in margins and Century Gothic. The browser print
- * path remains the PDF file of record (D-43); this renderer produces the
- * editable copy from identical content. Casualties stay aggregate-only and
- * there is no picture section (D-45); columns with no frozen source render
- * "Unavailable", never a guessed figure.
+ * (8.5 × 13 in) with 0.5 in margins: office seals and a Times New Roman
+ * letterhead closed by a thick rule, an underlined addressee and tab-aligned
+ * memorandum closed by a thin rule, Century Gothic body, and the template's
+ * shaded section bands (blue Roman, green lettered, light-green sub). The
+ * browser print path remains the PDF file of record (D-43); this renderer
+ * produces the editable copy from identical content. Casualties stay
+ * aggregate-only and there is no picture section (D-45); columns with no
+ * frozen source render "Unavailable", never a guessed figure.
  */
 final class SitrepDocxRenderer
 {
@@ -31,6 +34,14 @@ final class SitrepDocxRenderer
     private const MARGIN_TWIPS = 720; // 0.5 in
 
     private const CONTENT_WIDTH_TWIPS = 10800; // page width minus both margins
+
+    private const BAND_ROMAN = 'bdd6ee';
+
+    private const BAND_LETTER = 'a8d08d';
+
+    private const BAND_SUB = 'c5e0b3';
+
+    private const SEAL_HEIGHT_PX = 76; // ~0.8 in at 96 dpi
 
     /**
      * @param  array<string, mixed>  $doc  the SitrepDocument view-model
@@ -70,13 +81,23 @@ final class SitrepDocxRenderer
      */
     private function letterhead(Section $section, array $doc): void
     {
-        foreach (['country', 'province', 'municipality', 'unit', 'address', 'email'] as $line) {
-            $section->addText(
-                $doc['office'][$line],
-                ['bold' => in_array($line, ['municipality', 'unit'], true)],
-                ['alignment' => Jc::CENTER, 'spaceAfter' => 0],
-            );
+        $seals = $section->addTextRun(['alignment' => Jc::CENTER, 'spaceAfter' => 60]);
+
+        foreach (['seal_apalit.png', 'seal_philippines.png', 'seal_mdrrmo.png'] as $seal) {
+            $seals->addImage(resource_path('sitrep/'.$seal), ['height' => self::SEAL_HEIGHT_PX]);
         }
+
+        $letterhead = ['name' => 'Times New Roman', 'size' => 10];
+
+        foreach (['country', 'province', 'municipality', 'unit', 'address', 'email'] as $line) {
+            $text = $line === 'email' ? 'Email: '.$doc['office'][$line] : $doc['office'][$line];
+            $font = in_array($line, ['municipality', 'unit'], true)
+                ? array_merge($letterhead, ['bold' => true])
+                : $letterhead;
+            $section->addText($text, $font, ['alignment' => Jc::CENTER, 'spaceAfter' => 0]);
+        }
+
+        $this->rule($section, 12);
     }
 
     /**
@@ -84,17 +105,38 @@ final class SitrepDocxRenderer
      */
     private function memorandum(Section $section, array $doc): void
     {
-        $section->addText('MEMORANDUM FOR THE CHAIRPERSON, MDRRMC', ['bold' => true], ['spaceBefore' => 200]);
-        $section->addText('THRU: '.$doc['office']['thru'], null, ['spaceAfter' => 0]);
-        $section->addText('FROM: '.$doc['office']['signatory'].', '.$doc['office']['signatory_title'], null, ['spaceAfter' => 0]);
         $section->addText(
-            'SUBJECT: Situational Report No. '.($doc['issuance']['report_number'] ?? 'XX (unissued draft)').' Re: '
-            .($doc['event']['title'] ?? 'No flood event linked to this revision'),
-            null,
-            ['spaceAfter' => 0],
+            'MEMORANDUM FOR THE CHAIRPERSON, MDRRMC',
+            ['bold' => true, 'underline' => true],
+            ['spaceBefore' => 120, 'spaceAfter' => 60],
         );
-        $section->addText('DATE: '.$doc['meta']['snapshot_at'].' ('.$doc['meta']['timezone'].')', null, ['spaceAfter' => 0]);
-        $section->addText('For the period '.$doc['meta']['window_starts_at'].' to '.$doc['meta']['window_ends_at'], null, ['spaceAfter' => 0]);
+
+        $rows = [
+            'THRU:' => $doc['office']['thru'],
+            'FROM:' => $doc['office']['signatory'].', '.$doc['office']['signatory_title'],
+            'SUBJECT:' => 'Situational Report No. '.($doc['issuance']['report_number'] ?? 'XX (unissued draft)').' Re: '
+                .($doc['event']['title'] ?? 'No flood event linked to this revision'),
+            'DATE:' => $doc['meta']['snapshot_at'].' ('.$doc['meta']['timezone'].')',
+        ];
+
+        foreach ($rows as $label => $value) {
+            $run = $section->addTextRun([
+                'tabs' => [['type' => 'left', 'position' => 1300]],
+                'spaceAfter' => 0,
+            ]);
+            $run->addText($label);
+            $run->addText("\t");
+            $run->addText($value, ['bold' => true]);
+        }
+
+        $section->addText(
+            'For the period '.$doc['meta']['window_starts_at'].' to '.$doc['meta']['window_ends_at'],
+            null,
+            ['spaceAfter' => 60],
+        );
+
+        $this->rule($section, 6);
+
         $section->addText($doc['adaptation'], ['size' => 10, 'italic' => true]);
     }
 
@@ -103,8 +145,8 @@ final class SitrepDocxRenderer
      */
     private function overview(Section $section, array $doc): void
     {
-        $section->addText('I. SITUATION OVERVIEW', ['bold' => true], ['spaceBefore' => 200]);
-        $section->addText('Weather Condition', ['bold' => true]);
+        $this->band($section, 'I. SITUATION OVERVIEW', self::BAND_ROMAN);
+        $this->band($section, 'a. Weather Condition', self::BAND_LETTER);
 
         $this->rowsOrUnavailable($section, $doc['sections']['weather'], function (array $row) use ($section): void {
             $section->addText($row['payload']['summary'] ?? '');
@@ -117,7 +159,7 @@ final class SitrepDocxRenderer
      */
     private function effects(Section $section, array $doc): void
     {
-        $section->addText('II. EFFECTS', ['bold' => true], ['spaceBefore' => 200]);
+        $this->band($section, 'II. EFFECTS', self::BAND_ROMAN);
 
         $this->flooding($section, $doc);
         $this->riverBasin($section, $doc);
@@ -136,7 +178,7 @@ final class SitrepDocxRenderer
      */
     private function flooding(Section $section, array $doc): void
     {
-        $section->addText('a. Flooding Situation', ['bold' => true]);
+        $this->band($section, 'a. Flooding Situation', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['City/Municipality/Barangay', 'Depth of Flooding (qualitative tier)', 'Remarks']);
 
@@ -147,7 +189,7 @@ final class SitrepDocxRenderer
             $table->addCell(3600)->addText($row['alert_level'] === null ? 'Unavailable' : 'Alert: '.$row['alert_label']);
         }
 
-        $section->addText('Source/s: MDRRMO Site Inspection & Barangay DRRM. '.$doc['stage_two']['reason'].' Depth is a qualitative tier from validated reports, not measured depth.', ['size' => 10]);
+        $section->addText('Source/s: MDRRMO Site Inspection & Barangay DRRM. '.$doc['stage_two']['reason'].' Depth is a qualitative tier from validated reports, not measured depth.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -155,7 +197,7 @@ final class SitrepDocxRenderer
      */
     private function riverBasin(Section $section, array $doc): void
     {
-        $section->addText('b. Pampanga River Basin Assessment Levels / Condition of Dikes and Creeks', ['bold' => true]);
+        $this->band($section, 'b. Pampanga River Basin Assessment Levels / Condition of Dikes and Creeks', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['Station', 'Water Level', 'Alert', 'Alarm', 'Critical']);
 
@@ -182,7 +224,7 @@ final class SitrepDocxRenderer
             $table->addCell(1600)->addText('Unavailable', ['italic' => true]);
         }
 
-        $section->addText('Source/s: Barangay DRRM. Alert/Alarm/Critical threshold columns are unavailable — no reviewed threshold supplement was frozen into this revision.', ['size' => 10]);
+        $section->addText('Source/s: Barangay DRRM. Alert/Alarm/Critical threshold columns are unavailable — no reviewed threshold supplement was frozen into this revision.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -190,7 +232,7 @@ final class SitrepDocxRenderer
      */
     private function lifelines(Section $section, array $doc): void
     {
-        $section->addText('c. Status of Lifelines', ['bold' => true]);
+        $this->band($section, 'c. Status of Lifelines', self::BAND_LETTER);
 
         $kinds = ['roads_bridges' => 'i. Roads and Bridges', 'power' => 'ii. Power Interruption', 'communications' => 'iii. Communications', 'water_supply' => 'iv. Water Supply'];
         $grouped = [];
@@ -200,7 +242,7 @@ final class SitrepDocxRenderer
         }
 
         foreach ($kinds as $kind => $heading) {
-            $section->addText($heading, ['bold' => true]);
+            $this->band($section, $heading, self::BAND_SUB);
             $rows = $grouped[$kind] ?? [];
             $table = $this->table($section);
 
@@ -235,7 +277,7 @@ final class SitrepDocxRenderer
             }
         }
 
-        $section->addText('Source/s: MDRRMO & utility offices. Interruption/restoration time columns are unavailable — no reviewed time fields were frozen into this revision.', ['size' => 10]);
+        $section->addText('Source/s: MDRRMO & utility offices. Interruption/restoration time columns are unavailable — no reviewed time fields were frozen into this revision.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -243,7 +285,7 @@ final class SitrepDocxRenderer
      */
     private function evacuation(Section $section, array $doc): void
     {
-        $section->addText('d. Pre-emptive Evacuation', ['bold' => true]);
+        $this->band($section, 'd. Pre-emptive Evacuation', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['City/Municipality/Barangay', 'No. of Barangays', 'No. of Families and Persons', 'No. of Evacuation Centers', 'Date of Pre-emptive Evacuation', 'Remarks']);
 
@@ -267,24 +309,24 @@ final class SitrepDocxRenderer
      */
     private function population(Section $section, array $doc): void
     {
-        $section->addText('e. Affected Population', ['bold' => true]);
+        $this->band($section, 'e. Affected Population', self::BAND_LETTER);
 
-        $section->addText('Evacuees', ['bold' => true]);
+        $this->band($section, 'Evacuees', self::BAND_SUB);
         $table = $this->table($section);
         $table->addRow();
-        $table->addCell(2200, ['vMerge' => 'restart', 'bgColor' => 'EEEEEE'])->addText('Barangay', ['bold' => true]);
-        $table->addCell(1400, ['vMerge' => 'restart', 'bgColor' => 'EEEEEE'])->addText('No. of Evac. Centers', ['bold' => true]);
-        $table->addCell(7200, ['gridSpan' => 4, 'bgColor' => 'EEEEEE'])->addText('No. of Evacuees', ['bold' => true], ['alignment' => Jc::CENTER]);
+        $table->addCell(2200, ['vMerge' => 'restart'])->addText('Barangay', ['bold' => true]);
+        $table->addCell(1400, ['vMerge' => 'restart'])->addText('No. of Evac. Centers', ['bold' => true]);
+        $table->addCell(7200, ['gridSpan' => 4])->addText('No. of Evacuees', ['bold' => true], ['alignment' => Jc::CENTER]);
         $table->addRow();
         $table->addCell(2200, ['vMerge' => 'continue']);
         $table->addCell(1400, ['vMerge' => 'continue']);
-        $table->addCell(3600, ['gridSpan' => 2, 'bgColor' => 'EEEEEE'])->addText('Inside Evacuation Center', ['bold' => true], ['alignment' => Jc::CENTER]);
-        $table->addCell(3600, ['gridSpan' => 2, 'bgColor' => 'EEEEEE'])->addText('Outside Evacuation Center', ['bold' => true], ['alignment' => Jc::CENTER]);
+        $table->addCell(3600, ['gridSpan' => 2])->addText('Inside Evacuation Center', ['bold' => true], ['alignment' => Jc::CENTER]);
+        $table->addCell(3600, ['gridSpan' => 2])->addText('Outside Evacuation Center', ['bold' => true], ['alignment' => Jc::CENTER]);
         $table->addRow();
         $table->addCell(2200, ['vMerge' => 'continue']);
         $table->addCell(1400, ['vMerge' => 'continue']);
         foreach (['Families', 'Persons', 'Families', 'Persons'] as $heading) {
-            $table->addCell(1800, ['bgColor' => 'EEEEEE'])->addText($heading, ['bold' => true]);
+            $table->addCell(1800)->addText($heading, ['bold' => true]);
         }
 
         foreach ($doc['barangays'] as $row) {
@@ -306,7 +348,7 @@ final class SitrepDocxRenderer
         $table->addCell(1800)->addText('Unavailable', ['italic' => true]);
         $table->addCell(1800)->addText($this->figure($this->sumPayload($doc['sections']['evacuees'], 'outside')));
 
-        $section->addText('Affected Population', ['bold' => true]);
+        $this->band($section, 'Affected Population', self::BAND_SUB);
         $table = $this->table($section);
         $this->headerRow($table, ['Barangay', 'No. of HH', 'No. of Families', 'No. of Individuals']);
 
@@ -324,7 +366,7 @@ final class SitrepDocxRenderer
         $table->addCell(2700)->addText($this->figure($doc['stage_two']['affected_families']));
         $table->addCell(2700)->addText($this->figure($doc['stage_two']['affected_individuals']));
 
-        $section->addText('Source/s: MSWD/BDRRMC. '.$doc['stage_two']['reason'].' Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.', ['size' => 10]);
+        $section->addText('Source/s: MSWD/BDRRMC. '.$doc['stage_two']['reason'].' Household (HH) counts and the evacuee families/persons split are unavailable — no reviewed source was frozen into this revision.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -332,7 +374,7 @@ final class SitrepDocxRenderer
      */
     private function casualties(Section $section, array $doc): void
     {
-        $section->addText('f. Casualties (Dead / Injured)', ['bold' => true]);
+        $this->band($section, 'f. Casualties (Dead / Injured)', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['City/Municipality/Barangay', 'Dead (persons)', 'Injured (persons)']);
 
@@ -353,7 +395,7 @@ final class SitrepDocxRenderer
      */
     private function damagedHouses(Section $section, array $doc): void
     {
-        $section->addText('g. Damaged Houses', ['bold' => true]);
+        $this->band($section, 'g. Damaged Houses', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['Barangay', 'No. of Partially Damaged', 'No. of Totally Damaged']);
 
@@ -368,7 +410,7 @@ final class SitrepDocxRenderer
             $table->addCell(3200)->addText($this->figure($row['payload']['total'] ?? null));
         }
 
-        $section->addText('Source/s: M/BDRRMO.', ['size' => 10]);
+        $section->addText('Source/s: M/BDRRMO.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -376,7 +418,7 @@ final class SitrepDocxRenderer
      */
     private function damageCosts(Section $section, array $doc): void
     {
-        $section->addText('h. Cost of Damages', ['bold' => true]);
+        $this->band($section, 'h. Cost of Damages', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['Damaged', 'Cost of Damages', 'Remarks']);
 
@@ -394,7 +436,7 @@ final class SitrepDocxRenderer
             $table->addCell(2800)->addText($row['remarks'] ?? 'Unavailable', $row['remarks'] === null ? ['italic' => true] : []);
         }
 
-        $section->addText('Source/s: DA Office / MDRRMO assessment. Fixed template taxonomy; a category with no reviewed supplement renders unavailable.', ['size' => 10]);
+        $section->addText('Source/s: DA Office / MDRRMO assessment. Fixed template taxonomy; a category with no reviewed supplement renders unavailable.', ['size' => 10, 'italic' => true]);
     }
 
     /**
@@ -402,7 +444,7 @@ final class SitrepDocxRenderer
      */
     private function otherIncidents(Section $section, array $doc): void
     {
-        $section->addText('i. Other Incidents/Activities Monitored', ['bold' => true]);
+        $this->band($section, 'i. Other Incidents/Activities Monitored', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['Incident / Activity', 'Status', 'Remarks']);
 
@@ -423,7 +465,7 @@ final class SitrepDocxRenderer
      */
     private function assistance(Section $section, array $doc): void
     {
-        $section->addText('j. Cost/Kind of Assistance Extended', ['bold' => true]);
+        $this->band($section, 'j. Cost/Kind of Assistance Extended', self::BAND_LETTER);
         $table = $this->table($section);
         $this->headerRow($table, ['Agency / Office', 'Cost/Kind of Assistance', 'Remarks']);
 
@@ -444,7 +486,7 @@ final class SitrepDocxRenderer
      */
     private function actions(Section $section, array $doc): void
     {
-        $section->addText('III. ACTIONS TAKEN', ['bold' => true], ['spaceBefore' => 200]);
+        $this->band($section, 'III. ACTIONS TAKEN', self::BAND_ROMAN);
 
         if ($doc['sections']['actions'] === []) {
             $this->unavailable($section, 'Unavailable — no reviewed action supplement was frozen into this revision.');
@@ -530,6 +572,37 @@ final class SitrepDocxRenderer
         }
     }
 
+    /**
+     * A full-width shaded heading bar matching the template (blue Roman,
+     * green lettered, light-green sub). Paragraph shading fills the line.
+     */
+    private function band(Section $section, string $text, string $fill): void
+    {
+        $section->addText($text, ['bold' => true], [
+            'shading' => $fill,
+            'spaceBefore' => 120,
+            'spaceAfter' => 60,
+        ]);
+    }
+
+    /**
+     * A horizontal rule: a single-cell table carrying only a bottom border
+     * (PhpWord paragraph styles expose no border in this version).
+     */
+    private function rule(Section $section, int $size): void
+    {
+        $table = $section->addTable([
+            'borderSize' => 0,
+            'borderBottomSize' => $size,
+            'borderBottomColor' => '000000',
+            'cellMargin' => 0,
+            'width' => 100 * 50,
+            'unit' => TblWidth::PERCENT,
+        ]);
+        $table->addRow();
+        $table->addCell(self::CONTENT_WIDTH_TWIPS)->addText('');
+    }
+
     private function table(Section $section): Table
     {
         return $section->addTable([
@@ -549,7 +622,7 @@ final class SitrepDocxRenderer
         $table->addRow();
 
         foreach ($headings as $heading) {
-            $table->addCell(null, ['bgColor' => 'EEEEEE'])->addText($heading, ['bold' => true]);
+            $table->addCell(null)->addText($heading, ['bold' => true]);
         }
     }
 
@@ -602,7 +675,7 @@ final class SitrepDocxRenderer
     {
         $section->addText(
             'Source/s: '.($row['source'] ?? 'Unavailable').($row['observed_at'] ? ' — observed '.$row['observed_at'] : ''),
-            ['size' => 10, 'color' => '333333'],
+            ['size' => 10, 'italic' => true, 'color' => '333333'],
             ['spaceAfter' => 80],
         );
     }

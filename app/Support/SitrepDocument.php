@@ -72,6 +72,7 @@ final class SitrepDocument
                 'flood_label' => self::floodLabel($row['flood_level']),
             ], $report->barangays),
             'sections' => $sections,
+            'cost_taxonomy' => self::costTaxonomy($sections['damage_costs']),
             'provenance' => $report->inclusions->map(fn ($inclusion): array => [
                 'flood_report_id' => $inclusion->flood_report_id,
                 'barangay_id' => $inclusion->barangay_id,
@@ -96,5 +97,103 @@ final class SitrepDocument
     private static function label(?CarbonInterface $instant, string $timezone): ?string
     {
         return $instant?->copy()->setTimezone($timezone)->format('F j, Y g:i A');
+    }
+
+    /**
+     * The template's fixed cost-of-damages taxonomy (format fidelity pass).
+     * Presentation only: each leaf row holds at most one frozen supplement
+     * (first match wins, never double-counted); supplements that match no
+     * fixed row append as their own rows. Amounts are the frozen figures,
+     * never re-derived. A row with no supplement renders "Unavailable".
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array{label: string, group: bool, indent: bool, cost: ?string, remarks: ?string}>
+     */
+    private static function costTaxonomy(array $rows): array
+    {
+        $taxonomy = [
+            ['label' => 'Infrastructure (Roads, Bridges, and Other Structures)', 'keys' => ['infrastructure', 'roads', 'bridges']],
+            ['label' => 'School Facilities', 'keys' => ['school']],
+            ['label' => 'Health Facilities', 'keys' => ['health']],
+            ['label' => 'Agriculture', 'keys' => [], 'group' => true],
+            ['label' => 'Crops', 'keys' => ['crops'], 'indent' => true],
+            ['label' => 'Livestock', 'keys' => ['livestock'], 'indent' => true],
+            ['label' => 'HVCC', 'keys' => ['hvcc'], 'indent' => true],
+            ['label' => 'Fisheries', 'keys' => ['fisheries'], 'indent' => true],
+            ['label' => 'Other Agricultural Facilities / Equipment', 'keys' => ['otheragricultural', 'agriculturalfacilities', 'agriculture'], 'indent' => true],
+            ['label' => 'Other Properties (Private Properties)', 'keys' => ['otherproperties', 'privateproperties', 'private']],
+        ];
+
+        $used = [];
+        $out = [];
+
+        foreach ($taxonomy as $entry) {
+            $isGroup = $entry['group'] ?? false;
+            $cost = null;
+            $remarks = null;
+
+            if (! $isGroup) {
+                foreach ($rows as $i => $row) {
+                    if (isset($used[$i])) {
+                        continue;
+                    }
+
+                    $category = self::normalizeKey((string) ($row['payload']['category'] ?? ''));
+
+                    foreach ($entry['keys'] as $key) {
+                        if ($category !== '' && str_contains($category, $key)) {
+                            $cost = self::costString($row);
+                            $remarks = isset($row['payload']['estimate_status']) ? (string) $row['payload']['estimate_status'] : null;
+                            $used[$i] = true;
+
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            $out[] = [
+                'label' => $entry['label'],
+                'group' => $isGroup,
+                'indent' => $entry['indent'] ?? false,
+                'cost' => $cost,
+                'remarks' => $remarks,
+            ];
+        }
+
+        foreach ($rows as $i => $row) {
+            if (isset($used[$i])) {
+                continue;
+            }
+
+            $out[] = [
+                'label' => (string) ($row['payload']['category'] ?? 'Other'),
+                'group' => false,
+                'indent' => false,
+                'cost' => self::costString($row),
+                'remarks' => isset($row['payload']['estimate_status']) ? (string) $row['payload']['estimate_status'] : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private static function costString(array $row): ?string
+    {
+        $amount = $row['payload']['amount'] ?? null;
+
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        return ($row['payload']['currency'] ?? 'PHP').' '.$amount;
+    }
+
+    private static function normalizeKey(string $value): string
+    {
+        return strtolower(preg_replace('/[^a-z0-9]/i', '', $value) ?? '');
     }
 }

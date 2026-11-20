@@ -121,14 +121,30 @@ it('renders the frozen document identically twice and keeps field roles out', fu
         ->getContent();
 
     expect($first)->toContain('MUNICIPALITY OF APALIT')
+        ->toContain('name="sitrep-document"')
+        ->toContain('MEMORANDUM FOR THE CHAIRPERSON, MDRRMC')
+        ->toContain('THRU:')
+        ->toContain('FROM:')
+        ->toContain('SUBJECT:')
         ->toContain('I. SITUATION OVERVIEW')
         ->toContain('II. EFFECTS')
         ->toContain('III. ACTIONS TAKEN')
         ->toContain('iv. Water Supply')
+        ->toContain('Depth of Flooding (qualitative tier)')
+        ->toContain('No. of Evac. Centers')
+        ->toContain('Dead (persons)')
+        ->toContain('Injured (persons)')
+        ->toContain('Cost of Damages')
+        ->toContain('For the information of the Chairperson, MDRRMC')
         ->toContain('Moderate to heavy rain over Apalit')
         ->toContain('Habagat flooding')
         ->toContain('Balucuc')
-        ->toContain('Provenance annex');
+        ->toContain('Provenance annex')
+        // Aggregate-only (D-45): the personal casualty columns and the
+        // template's picture attachment line are deliberately absent.
+        ->not->toContain('Gender')
+        ->not->toContain('Cause of Death')
+        ->not->toContain('ATTACH PICTURES');
 
     $second = $this->withToken(sitrepApiToken($staff))
         ->get("/api/situational-reports/{$id}/document")

@@ -83,6 +83,19 @@ it('reports realtime as disabled when only one side of the deployment is configu
         ->assertJsonMissingPath('data.token');
 });
 
+it('reports realtime as disabled when the configured URL is a dashboard link, not a project origin', function () {
+    config(['services.supabase.url' => 'https://supabase.com/dashboard/project/geqlrrvldimrezifjwxc']);
+
+    $user = User::factory()->officer()->create();
+
+    $this->withToken($user->createToken('t')->plainTextToken)
+        ->getJson('/api/realtime/authorization')
+        ->assertOk()
+        ->assertJsonPath('data.enabled', false)
+        ->assertJsonMissingPath('data.url')
+        ->assertJsonMissingPath('data.token');
+});
+
 it('derives a command-center scope and a signed token on the server', function () {
     $user = User::factory()->officer()->create();
 

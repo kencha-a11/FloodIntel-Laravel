@@ -24,7 +24,7 @@ final class RealtimeSettings
     public static function fromConfig(): self
     {
         return new self(
-            self::string(config('services.supabase.url')),
+            self::url(config('services.supabase.url')),
             self::string(config('services.supabase.anon_key')),
             self::string(config('services.supabase.service_role_key')),
             self::string(config('services.supabase.jwt_secret')),
@@ -57,5 +57,38 @@ final class RealtimeSettings
         $value = trim($value);
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * A Supabase project API URL is a bare https origin (the realtime and REST
+     * endpoints hang off `/realtime/...` and `/rest/...`). A dashboard URL such
+     * as `https://supabase.com/dashboard/project/<ref>` carries a path and is
+     * not an API endpoint; treating it as configured would hand the client a
+     * doomed websocket URL. Reject anything that is not a clean origin so a
+     * misconfigured deployment keeps the polling substitute (D-63, D-66).
+     */
+    private static function url(mixed $value): ?string
+    {
+        $value = self::string($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $parts = parse_url($value);
+
+        if (! is_array($parts)) {
+            return null;
+        }
+
+        $scheme = strtolower($parts['scheme'] ?? '');
+        $host = $parts['host'] ?? '';
+        $path = $parts['path'] ?? '';
+
+        if ($scheme !== 'https' || $host === '' || ($path !== '' && $path !== '/')) {
+            return null;
+        }
+
+        return $value;
     }
 }

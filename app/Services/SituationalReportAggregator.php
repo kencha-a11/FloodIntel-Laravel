@@ -3,13 +3,17 @@
 namespace App\Services;
 
 use App\Enums\AlertLevel;
+use App\Enums\FloodImpactStatus;
 use App\Enums\FloodLevel;
 use App\Enums\FloodReportStatus;
 use App\Enums\UserAbility;
 use App\Models\Barangay;
+use App\Models\FloodEvent;
+use App\Models\FloodImpactReport;
 use App\Models\FloodReport;
 use App\Models\FloodReportStatusChange;
 use App\Models\SituationalReport;
+use App\Models\SituationalReportSupplement;
 use App\Models\User;
 use App\Support\ConsolidationWindow;
 use App\Support\SituationalReportSnapshot;
@@ -21,11 +25,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Stage-1 aggregation for the situational report (D-41, FR-75–FR-80).
+ * Aggregation for the situational report (D-41, D-147, FR-75–FR-80).
  *
  * Reads through module 06's validated scope and module 06's consolidation
  * window; it defines neither. `aggregate()` is a pure read, and `prepare()`
- * writes the snapshot and its provenance in one transaction.
+ * writes the snapshot and its provenance in one transaction. When an event
+ * is selected, the adapted document's supplement drafts and cumulative-event
+ * impact filings are frozen into the snapshot's content at prepare time.
  */
 final class SituationalReportAggregator
 {
@@ -215,9 +221,69 @@ final class SituationalReportAggregator
     }
 
     /**
-     * Compute the document's stage-1 figures without writing anything.
+     * The latest non-superseded impact filing per barangay for the event as
+     * of the snapshot (D-147): cumulative for the event, never a per-cutoff
+     * sum. Ties on the observation time resolve to the higher id.
+     *
+     * @return Collection<int, FloodImpactReport>
      */
-    public function aggregate(ConsolidationWindow $window, ?CarbonInterface $snapshotAt = null): SituationalReportSnapshot
+    private function latestImpactFilings(int $eventId, CarbonImmutable $snapshot): Collection
+    {
+        return FloodImpactReport::query()
+            ->where('event_id', $eventId)
+            ->where('status', FloodImpactStatus::Submitted)
+            ->where('reported_at', '<=', $snapshot)
+            ->orderByDesc('reported_at')
+            ->orderByDesc('id')
+            ->get(['id', 'barangay_id', 'families', 'individuals', 'reported_at'])
+            ->unique('barangay_id');
+    }
+
+    /**
+     * Freeze the event's reviewed supplement drafts into document content.
+     * Later draft edits affect only future revisions (D-40, D-147).
+     *
+     * @return array{event: array<string, mixed>|null, supplements: list<array<string, mixed>>, adaptation: string}
+     */
+    private function documentContent(?FloodEvent $event): array
+    {
+        $supplements = $event === null
+            ? collect()
+            : SituationalReportSupplement::query()
+                ->where('event_id', $event->id)
+                ->with('barangay:id,name')
+                ->orderBy('id')
+                ->get();
+
+        return [
+            'event' => $event === null ? null : [
+                'id' => $event->id,
+                'title' => $event->title,
+                'description' => $event->description,
+                'starts_at' => $event->starts_at?->utc()->toIso8601String(),
+                'ends_at' => $event->ends_at?->utc()->toIso8601String(),
+                'is_closed' => $event->is_closed,
+            ],
+            'supplements' => $supplements->map(fn (SituationalReportSupplement $row): array => [
+                'id' => $row->id,
+                'section' => $row->section->value,
+                'barangay_id' => $row->barangay_id,
+                'barangay' => $row->barangay?->name,
+                'payload' => $row->payload,
+                'source' => $row->source,
+                'observed_at' => $row->observed_at?->utc()->toIso8601String(),
+                'created_by_name' => $row->created_by_name,
+            ])->values()->all(),
+            'adaptation' => 'Aggregate-only adaptation of the PDRRMO SITREP template (D-45, amended 2026-11-18): barangay-level figures only; no individual identities, addresses, coordinates, or photographs.',
+        ];
+    }
+
+    /**
+     * Compute the document's figures without writing anything. With an event
+     * selected, impact figures and frozen supplement content are included
+     * (D-147); without one, impact stays unavailable and content is null.
+     */
+    public function aggregate(ConsolidationWindow $window, ?CarbonInterface $snapshotAt = null, ?int $eventId = null): SituationalReportSnapshot
     {
         $start = $window->startsAt->utc();
         $end = $window->nextCutoffAt->utc();
@@ -233,6 +299,8 @@ final class SituationalReportAggregator
         $excluded = $this->nullObservationCount($start, $end, $snapshot);
 
         $includedByBarangay = $included->groupBy('barangay_id');
+        $event = $eventId === null ? null : FloodEvent::query()->find($eventId);
+        $impact = $event === null ? collect() : $this->latestImpactFilings($event->id, $snapshot)->keyBy('barangay_id');
         $barangays = [];
         $includedReports = [];
 
@@ -251,8 +319,8 @@ final class SituationalReportAggregator
                 'status_counts' => $barangayCounts,
                 'alert_level' => $this->highestAlert($barangayIncluded),
                 'flood_level' => $this->highestFlood($barangayIncluded),
-                'affected_families' => null,
-                'affected_individuals' => null,
+                'affected_families' => $impact->get($barangay->id)?->families,
+                'affected_individuals' => $impact->get($barangay->id)?->individuals,
             ];
 
             foreach ($barangayIncluded as $report) {
@@ -296,25 +364,36 @@ final class SituationalReportAggregator
             latency: $this->latencyStatistics($latencies, $excluded),
             barangays: $barangays,
             includedReports: $includedReports,
-            stageTwo: [
+            stageTwo: $event === null ? [
                 'available' => false,
-                'reason' => SituationalReportSnapshot::STAGE_TWO_REASON,
+                'reason' => SituationalReportSnapshot::NO_EVENT_REASON,
                 'affected_families' => null,
                 'affected_individuals' => null,
+            ] : [
+                'available' => true,
+                'basis' => SituationalReportSnapshot::IMPACT_BASIS,
+                'reason' => SituationalReportSnapshot::IMPACT_REASON,
+                'affected_families' => $impact->isEmpty() ? null : (int) $impact->sum('families'),
+                'affected_individuals' => $impact->isEmpty() ? null : (int) $impact->sum('individuals'),
             ],
+            eventId: $event?->id,
+            content: $event === null ? null : $this->documentContent($event),
         );
     }
 
     /**
      * Write one immutable revision of the current snapshot (D-40, FR-81).
+     * Staff prepare via ConsolidateReports; the officer may also prepare
+     * on demand via GenerateProvincialReport (D-147).
      */
-    public function prepare(ConsolidationWindow $window, User $generatedBy, ?CarbonInterface $snapshotAt = null): SituationalReport
+    public function prepare(ConsolidationWindow $window, User $generatedBy, ?CarbonInterface $snapshotAt = null, ?int $eventId = null): SituationalReport
     {
-        if (! $generatedBy->hasAbility(UserAbility::ConsolidateReports)) {
-            throw new AuthorizationException('Preparing a situational report requires the '.UserAbility::ConsolidateReports->label().' ability.');
+        if (! $generatedBy->hasAbility(UserAbility::ConsolidateReports)
+            && ! $generatedBy->hasAbility(UserAbility::GenerateProvincialReport)) {
+            throw new AuthorizationException('Preparing a situational report requires the '.UserAbility::ConsolidateReports->label().' or '.UserAbility::GenerateProvincialReport->label().' ability.');
         }
 
-        $snapshot = $this->aggregate($window, $snapshotAt);
+        $snapshot = $this->aggregate($window, $snapshotAt, $eventId);
         $cutoff = $snapshot->windowEndsAt;
 
         return DB::transaction(function () use ($snapshot, $generatedBy, $cutoff): SituationalReport {
@@ -344,6 +423,8 @@ final class SituationalReportAggregator
                 'barangays' => $snapshot->barangays,
                 'latency' => $snapshot->latency,
                 'stage_two' => $snapshot->stageTwo,
+                'event_id' => $snapshot->eventId,
+                'content' => $snapshot->content,
             ]);
 
             foreach ($snapshot->includedReports as $row) {

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use LogicException;
 
 /**
@@ -20,6 +21,7 @@ use LogicException;
     'snapshot_at', 'revision', 'predecessor_id', 'format_version',
     'generated_by_user_id', 'generated_by_name', 'generated_by_role',
     'status_counts', 'totals', 'barangays', 'latency', 'stage_two',
+    'event_id', 'content',
 ])]
 class SituationalReport extends Model
 {
@@ -41,7 +43,28 @@ class SituationalReport extends Model
             'barangays' => 'array',
             'latency' => 'array',
             'stage_two' => 'array',
+            'content' => 'array',
         ];
+    }
+
+    /**
+     * Get the flood event this revision covers, when one was selected (D-147).
+     *
+     * @return BelongsTo<FloodEvent, $this>
+     */
+    public function event(): BelongsTo
+    {
+        return $this->belongsTo(FloodEvent::class, 'event_id');
+    }
+
+    /**
+     * Get the issuance record, once an officer has issued this revision.
+     *
+     * @return HasOne<SituationalReportIssuance, $this>
+     */
+    public function issuance(): HasOne
+    {
+        return $this->hasOne(SituationalReportIssuance::class);
     }
 
     /**

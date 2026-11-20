@@ -14,13 +14,19 @@ use Carbon\CarbonImmutable;
 final class SituationalReportSnapshot
 {
     /**
-     * The format version recorded until the provincial transcript (D-39)
-     * defines the document's versions; stage 2 bumps it when impact figures
-     * become available (D-41).
+     * Format version 2 (D-147): the adapted full document — event metadata,
+     * frozen supplement drafts, and cumulative-event impact figures. Version
+     * 1 rows keep null content and render from their stage-1 columns.
      */
-    public const FORMAT_VERSION = '1';
+    public const FORMAT_VERSION = '2';
 
     public const STAGE_TWO_REASON = 'Impact aggregation is not implemented yet; affected families and individuals are unavailable in this revision.';
+
+    public const NO_EVENT_REASON = 'No flood event is linked to this revision; affected families and individuals are unavailable.';
+
+    public const IMPACT_BASIS = 'latest_filing_cumulative_event';
+
+    public const IMPACT_REASON = 'Cumulative for the event: the latest non-superseded impact filing per barangay as of the snapshot, never summed across cutoffs.';
 
     /**
      * @param  array{basis: string, validated: int, pending: int, returned: int, rejected: int}  $statusCounts
@@ -28,7 +34,8 @@ final class SituationalReportSnapshot
      * @param  array{samples: int, excluded_null_observation: int, mean_seconds: float|null, median_seconds: float|null, max_seconds: int|null}  $latency
      * @param  list<array{barangay_id: int, barangay: string, barangay_code: string, no_report_received: bool, reports: int, included_reports: int, status_counts: array{validated: int, pending: int, returned: int, rejected: int}, alert_level: string|null, flood_level: string|null, affected_families: int|null, affected_individuals: int|null}>  $barangays
      * @param  list<array{flood_report_id: int, barangay_id: int, alert_level: string|null, flood_level: string|null, observed_at: CarbonImmutable, validated_at: CarbonImmutable}>  $includedReports
-     * @param  array{available: bool, reason: string, affected_families: int|null, affected_individuals: int|null}  $stageTwo
+     * @param  array{available: bool, reason: string, affected_families: int|null, affected_individuals: int|null, basis?: string}  $stageTwo
+     * @param  array{event: array<string, mixed>|null, supplements: list<array<string, mixed>>, adaptation: string}|null  $content
      */
     public function __construct(
         public readonly CarbonImmutable $windowStartsAt,
@@ -42,5 +49,7 @@ final class SituationalReportSnapshot
         public readonly array $barangays,
         public readonly array $includedReports,
         public readonly array $stageTwo,
+        public readonly ?int $eventId = null,
+        public readonly ?array $content = null,
     ) {}
 }

@@ -29,6 +29,9 @@ final class RlsScope
         'login_events',
         'situational_reports',
         'situational_report_inclusions',
+        'situational_report_supplements',
+        'situational_report_issuances',
+        'situational_report_runs',
     ];
 
     /**

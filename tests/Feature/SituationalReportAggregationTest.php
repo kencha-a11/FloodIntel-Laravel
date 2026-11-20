@@ -254,7 +254,8 @@ it('lists every barangay and never claims zero when nothing was filed', function
         ->and($snapshot->stageTwo['available'])->toBeFalse()
         ->and($snapshot->stageTwo['affected_families'])->toBeNull()
         ->and($snapshot->stageTwo['affected_individuals'])->toBeNull()
-        ->and($snapshot->stageTwo['reason'])->toContain('not implemented');
+        ->and($snapshot->stageTwo['reason'])->toContain('No flood event')
+        ->and($snapshot->content)->toBeNull();
 });
 
 it('refuses to edit or delete a stored revision and its provenance', function () {
@@ -280,7 +281,7 @@ it('refuses to edit or delete a stored revision and its provenance', function ()
         ->toThrow(LogicException::class);
 });
 
-it('lets staff prepare and refuses every other role', function () {
+it('lets staff and the officer prepare and refuses field roles', function () {
     $barangay = Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
     $staff = User::factory()->staff()->create();
     $officer = User::factory()->officer()->create();
@@ -292,10 +293,10 @@ it('lets staff prepare and refuses every other role', function () {
     $aggregator = app(SituationalReportAggregator::class);
     $window = ConsolidationWindow::current();
 
-    expect(fn () => $aggregator->prepare($window, $officer))->toThrow(AuthorizationException::class);
     expect(fn () => $aggregator->prepare($window, $tanod))->toThrow(AuthorizationException::class);
     expect(fn () => $aggregator->prepare($window, $rescueLeader))->toThrow(AuthorizationException::class);
     expect($aggregator->prepare($window, $staff))->toBeInstanceOf(SituationalReport::class);
+    expect($aggregator->prepare($window, $officer))->toBeInstanceOf(SituationalReport::class);
 
-    expect(SituationalReport::query()->count())->toBe(1);
+    expect(SituationalReport::query()->count())->toBe(2);
 });

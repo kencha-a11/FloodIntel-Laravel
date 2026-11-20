@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\RealtimeController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SessionController;
+use App\Http\Controllers\Api\SitrepSupplementController;
+use App\Http\Controllers\Api\SituationalReportController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -103,6 +105,32 @@ Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'role:mdrrmo_offic
     Route::get('/barangays', [BarangayController::class, 'index'])
         ->middleware('throttle:admin-write');
     Route::get('/realtime/latency', [RealtimeController::class, 'latencySummary']);
+
+    // SITREP (D-42, D-43, D-147): command-center only; preparation and
+    // issuance enforce their abilities in the services, and RLS scopes the
+    // tables. The document is fetched with the bearer token and printed by
+    // the client — no public or tokenized link exists (FR-86).
+    Route::get('/situational-reports', [SituationalReportController::class, 'index']);
+    Route::post('/situational-reports', [SituationalReportController::class, 'store'])
+        ->middleware('throttle:10,1');
+    // The literal path is declared before the parameter route so it wins.
+    Route::get('/situational-reports/runs/status', [SituationalReportController::class, 'runsStatus'])
+        ->middleware('throttle:30,1');
+    Route::get('/situational-reports/{situationalReport}', [SituationalReportController::class, 'show']);
+    Route::get('/situational-reports/{situationalReport}/document', [SituationalReportController::class, 'document'])
+        ->middleware('throttle:30,1');
+    Route::get('/situational-reports/{situationalReport}/docx', [SituationalReportController::class, 'docx'])
+        ->middleware('throttle:10,1');
+    Route::post('/situational-reports/{situationalReport}/issue', [SituationalReportController::class, 'issue'])
+        ->middleware('throttle:10,1');
+
+    Route::get('/sitrep-supplements', [SitrepSupplementController::class, 'index']);
+    Route::post('/sitrep-supplements', [SitrepSupplementController::class, 'store'])
+        ->middleware('throttle:30,1');
+    Route::patch('/sitrep-supplements/{supplement}', [SitrepSupplementController::class, 'update'])
+        ->middleware('throttle:30,1');
+    Route::delete('/sitrep-supplements/{supplement}', [SitrepSupplementController::class, 'destroy'])
+        ->middleware('throttle:30,1');
 });
 
 Route::middleware(['auth:sanctum', 'db.identity', 'verified', 'role:mdrrmo_officer', 'throttle:admin-write'])->group(function () {

@@ -13,7 +13,6 @@ use App\Enums\UserRole;
 function reservedAbilityOwners(): array
 {
     return [
-        UserAbility::GenerateProvincialReport->value => 'SITREP-03',
         UserAbility::DispatchAssets->value => 'DISPATCH-02',
         UserAbility::UpdateRescueStatus->value => 'DISPATCH-03',
     ];
@@ -73,7 +72,6 @@ it('consumes every ability that is not reserved', function () {
 
 it('reserves exactly the abilities whose owners are in scope', function () {
     expect(array_keys(reservedAbilityOwners()))->toBe([
-        UserAbility::GenerateProvincialReport->value,
         UserAbility::DispatchAssets->value,
         UserAbility::UpdateRescueStatus->value,
     ]);

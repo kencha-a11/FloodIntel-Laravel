@@ -43,6 +43,10 @@
     {
       "name": "Realtime",
       "description": "Supabase Realtime channel authorization and propagation-latency measurement."
+    },
+    {
+      "name": "Situational reports",
+      "description": "The adapted PDRRMO SITREP (D-45 amendment, D-147): command-center preparation, officer issuance, and snapshot-backed exports. Barangay-level aggregates only; no personal data."
     }
   ],
   "paths": {
@@ -2212,6 +2216,575 @@
           }
         }
       }
+    },
+    "/api/situational-reports": {
+      "get": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "List prepared situational-report revisions",
+        "description": "Command center only. Newest cutoff first, then newest revision; each row carries its issuance when issued.",
+        "operationId": "listSituationalReports",
+        "x-controller": "App\\Http\\Controllers\\Api\\SituationalReportController@index",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PerPage"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of revisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SituationalReportPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Prepare a frozen revision of the current window",
+        "description": "Staff prepare via `consolidate-reports`; the officer may also prepare on demand via `generate-provincial-report` (D-147). The snapshot freezes validated flood figures, the event's supplement drafts, and cumulative-event impact filings; later edits never change it (D-40).",
+        "operationId": "prepareSituationalReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\SituationalReportController@store",
+        "x-request": "App\\Http\\Requests\\Sitrep\\PrepareSituationalReportRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareSitrepInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The immutable revision was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SituationalReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/situational-reports/{situationalReport}": {
+      "get": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Read one revision with its provenance",
+        "operationId": "showSituationalReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\SituationalReportController@show",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SituationalReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revision, its inclusions, and its issuance when issued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SituationalReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/situational-reports/{situationalReport}/document": {
+      "get": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Render the frozen document as printable HTML",
+        "description": "The client fetches this with its bearer token and prints to PDF (D-43); no public or tokenized link exists (FR-86). Long-bond 8.5 x 13 in print CSS. The same revision renders identically every time.",
+        "operationId": "renderSituationalReportDocument",
+        "x-controller": "App\\Http\\Controllers\\Api\\SituationalReportController@document",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SituationalReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The adapted SITREP as HTML.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/situational-reports/{situationalReport}/docx": {
+      "get": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Download the editable DOCX of the frozen revision",
+        "description": "Rendered from the same snapshot view-model as the HTML preview (D-147, G5); the browser print path remains the PDF file of record.",
+        "operationId": "downloadSituationalReportDocx",
+        "x-controller": "App\\Http\\Controllers\\Api\\SituationalReportController@docx",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SituationalReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The DOCX package.",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/situational-reports/{situationalReport}/issue": {
+      "post": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Issue a frozen revision (officer only)",
+        "description": "Appends an issuance record naming the officer, the next per-event report number, and the confirmed office metadata. Never updates the snapshot; a correction is a new revision. Requires a linked event; an already-issued revision answers 422.",
+        "operationId": "issueSituationalReport",
+        "x-controller": "App\\Http\\Controllers\\Api\\SituationalReportController@issue",
+        "x-request": "App\\Http\\Requests\\Sitrep\\IssueSituationalReportRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SituationalReportId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueSitrepInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The revision with its new issuance record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SituationalReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/sitrep-supplements": {
+      "get": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "List an event's supplement drafts",
+        "operationId": "listSitrepSupplements",
+        "x-controller": "App\\Http\\Controllers\\Api\\SitrepSupplementController@index",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EventIdQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The event's drafts in creation order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitrepSupplementList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Create a supplement draft",
+        "description": "Mutable command-center work product until a snapshot freezes it. Payloads are aggregate-only: personal fields (names, demographics, addresses, coordinates, photographs) are rejected with 422 at the input boundary (D-45 amendment).",
+        "operationId": "storeSitrepSupplement",
+        "x-controller": "App\\Http\\Controllers\\Api\\SitrepSupplementController@store",
+        "x-request": "App\\Http\\Requests\\Sitrep\\StoreSitrepSupplementRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SitrepSupplementInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The draft was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitrepSupplement"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/sitrep-supplements/{supplement}": {
+      "patch": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Edit a supplement draft",
+        "description": "Edits affect only future revisions; a prepared snapshot keeps its frozen copy.",
+        "operationId": "updateSitrepSupplement",
+        "x-controller": "App\\Http\\Controllers\\Api\\SitrepSupplementController@update",
+        "x-request": "App\\Http\\Requests\\Sitrep\\UpdateSitrepSupplementRequest",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SupplementId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SitrepSupplementInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitrepSupplement"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Delete a supplement draft",
+        "description": "Only drafts are deletable; frozen snapshot content and issuance records are immutable.",
+        "operationId": "destroySitrepSupplement",
+        "x-controller": "App\\Http\\Controllers\\Api\\SitrepSupplementController@destroy",
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SupplementId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The draft was deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/situational-reports/runs/status": {
+      "get": {
+        "tags": [
+          "Situational reports"
+        ],
+        "summary": "Show recent cutoff preparation states",
+        "description": "The latest recorded attempt per cutoff, with derived states: `pending` before a cutoff passes and `not_run` when it passed with no attempt. A missed cutoff is visible here and recoverable with `sitrep:prepare-cutoff --trigger=manual`.",
+        "operationId": "sitrepRunsStatus",
+        "x-controller": "App\\Http\\Controllers\\Api\\SituationalReportController@runsStatus",
+        "x-required-roles": [
+          "mdrrmo_officer",
+          "mdrrmo_staff"
+        ],
+        "security": [
+          {
+            "sanctum": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The five most recent passed cutoffs and the next upcoming one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitrepRunStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2423,6 +2996,33 @@
           "minimum": -180,
           "maximum": 180
         }
+      },
+      "SituationalReportId": {
+        "name": "situationalReport",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        },
+        "description": "The immutable snapshot revision id."
+      },
+      "SupplementId": {
+        "name": "supplement",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        },
+        "description": "The supplement draft id."
+      },
+      "EventIdQuery": {
+        "name": "event_id",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        },
+        "description": "The flood event whose drafts are listed."
       }
     },
     "responses": {
@@ -4629,6 +5229,428 @@
           "reason": {
             "type": "string",
             "maxLength": 500
+          }
+        }
+      },
+      "SitrepIssuance": {
+        "type": "object",
+        "required": [
+          "report_number",
+          "issued_by_name",
+          "issued_by_role",
+          "office",
+          "issued_at"
+        ],
+        "properties": {
+          "report_number": {
+            "type": "integer",
+            "description": "System-assigned per-event sequence, separate from the revision number (G3)."
+          },
+          "issued_by_name": {
+            "type": "string"
+          },
+          "issued_by_role": {
+            "type": "string"
+          },
+          "office": {
+            "type": "object",
+            "description": "Office metadata frozen at issue (G4)."
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SituationalReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "revision",
+          "format_version",
+          "cutoff_label",
+          "totals",
+          "barangays",
+          "stage_two"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "event_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "window_starts_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "window_ends_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cutoff_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cutoff_label": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "snapshot_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "predecessor_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "format_version": {
+            "type": "string",
+            "description": "Version 2 is the adapted full document; version 1 rows keep null content."
+          },
+          "generated_by_name": {
+            "type": "string"
+          },
+          "generated_by_role": {
+            "type": "string"
+          },
+          "status_counts": {
+            "type": "object"
+          },
+          "totals": {
+            "type": "object"
+          },
+          "latency": {
+            "type": "object"
+          },
+          "barangays": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "All barangays in code order; missing figures are null, never zero."
+          },
+          "stage_two": {
+            "type": "object",
+            "description": "Cumulative-event impact figures and their basis, or unavailable with a reason."
+          },
+          "content": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Frozen event metadata, supplement drafts, and the adaptation note."
+          },
+          "issuance": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SitrepIssuance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SituationalReportPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "links",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SituationalReport"
+            }
+          },
+          "links": {
+            "$ref": "#/components/schemas/PaginationLinks"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "SitrepSupplement": {
+        "type": "object",
+        "required": [
+          "id",
+          "event_id",
+          "section",
+          "payload",
+          "created_by_name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "event_id": {
+            "type": "integer"
+          },
+          "section": {
+            "type": "string",
+            "enum": [
+              "weather",
+              "station",
+              "lifeline",
+              "evacuation",
+              "evacuees",
+              "households",
+              "casualties",
+              "damaged_houses",
+              "damage_costs",
+              "other_incidents",
+              "assistance",
+              "actions"
+            ]
+          },
+          "barangay_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "barangay": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "description": "Aggregate-only fields; personal fields are rejected at the input boundary (D-45)."
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_by_name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SitrepSupplementList": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SitrepSupplement"
+            }
+          }
+        }
+      },
+      "PrepareSitrepInput": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The event the revision covers; omit for a stage-1-only revision."
+          }
+        }
+      },
+      "IssueSitrepInput": {
+        "type": "object",
+        "properties": {
+          "office": {
+            "type": "object",
+            "description": "Confirmed overrides on the configured office defaults; frozen onto the issuance (G4).",
+            "properties": {
+              "country": {
+                "type": "string"
+              },
+              "province": {
+                "type": "string"
+              },
+              "municipality": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "thru": {
+                "type": "string"
+              },
+              "signatory": {
+                "type": "string"
+              },
+              "signatory_title": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "SitrepSupplementInput": {
+        "type": "object",
+        "required": [
+          "section",
+          "payload"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "integer",
+            "description": "Required on create; the event of an existing draft cannot change."
+          },
+          "section": {
+            "type": "string",
+            "enum": [
+              "weather",
+              "station",
+              "lifeline",
+              "evacuation",
+              "evacuees",
+              "households",
+              "casualties",
+              "damaged_houses",
+              "damage_costs",
+              "other_incidents",
+              "assistance",
+              "actions"
+            ]
+          },
+          "barangay_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Required for barangay-scoped sections (evacuation, evacuees, households, casualties, damaged_houses)."
+          },
+          "payload": {
+            "type": "object"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "observed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SitrepRunStatusRow": {
+        "type": "object",
+        "required": [
+          "cutoff_at",
+          "cutoff_label",
+          "state"
+        ],
+        "properties": {
+          "cutoff_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cutoff_label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "prepared",
+              "failed",
+              "not_run"
+            ],
+            "description": "pending and not_run are derived, never stored (D-44)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "situational_report_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "triggered_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "actor_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recorded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SitrepRunStatusResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SitrepRunStatusRow"
+            }
           }
         }
       }

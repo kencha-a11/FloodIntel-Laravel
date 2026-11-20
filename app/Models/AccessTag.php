@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 use LogicException;
 
 #[Fillable([
@@ -117,18 +118,22 @@ class AccessTag extends Model
      */
     public function retire(User $actor, ?string $reason = null): self
     {
-        if (! $this->is_active) {
-            return $this;
-        }
+        return DB::transaction(function () use ($actor, $reason): self {
+            $tag = static::where('id', $this->id)->lockForUpdate()->firstOrFail();
 
-        $this->forceFill([
-            'is_active' => false,
-            'retired_at' => now(),
-            'retired_reason' => $reason,
-            'retired_by' => $actor->id,
-        ])->save();
+            if (! $tag->is_active) {
+                return $tag;
+            }
 
-        return $this;
+            $tag->forceFill([
+                'is_active' => false,
+                'retired_at' => now(),
+                'retired_reason' => $reason,
+                'retired_by' => $actor->id,
+            ])->save();
+
+            return $tag;
+        });
     }
 
     /**

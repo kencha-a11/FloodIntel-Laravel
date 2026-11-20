@@ -608,6 +608,29 @@ it('leaves a second model retirement as a no-op that keeps the recorded event', 
         ->and($first->retired_by)->toBe($recorder->id);
 });
 
+it('keeps the first retirement when two retirements race (D-131)', function () {
+    $tag = AccessTag::factory()->create();
+    $recorder = User::findOrFail($tag->created_by);
+    $officer = User::factory()->officer()->create();
+
+    // First retirement holds the row lock and commits first.
+    DB::transaction(function () use ($tag, $recorder) {
+        $locked = AccessTag::where('id', $tag->id)->lockForUpdate()->first();
+        $locked->retire($recorder, 'First.');
+    });
+
+    // Second retirement acquires the lock after the first commits,
+    // finds the tag already retired, and is a no-op.
+    DB::transaction(function () use ($tag, $officer) {
+        $locked = AccessTag::where('id', $tag->id)->lockForUpdate()->first();
+        $locked->retire($officer, 'Second.');
+    });
+
+    expect($tag->fresh()->retired_reason)->toBe('First.')
+        ->and($tag->fresh()->retired_by)->toBe($recorder->id)
+        ->and($tag->fresh()->is_active)->toBeFalse();
+});
+
 it('leaves the level-report path untouched', function () {
     Storage::fake('public');
     Http::fake();

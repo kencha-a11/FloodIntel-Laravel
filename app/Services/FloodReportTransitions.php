@@ -117,7 +117,15 @@ final class FloodReportTransitions
         array $sources,
     ): FloodReportStatusChange {
         return DB::transaction(function () use ($report, $actor, $to, $reason, $sources): FloodReportStatusChange {
-            $from = $report->status;
+            // Lock the row so two concurrent transitions on the same report
+            // serialize: the second reader sees the first writer's status and
+            // either proceeds (still a legal source) or fails assertLegal.
+            $locked = FloodReport::query()
+                ->where('id', $report->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $from = $locked->status;
 
             $this->assertLegal($from, $to, $sources);
 
@@ -132,12 +140,16 @@ final class FloodReportTransitions
             self::$writing = true;
 
             try {
-                $report->forceFill($attributes)->save();
+                $locked->forceFill($attributes)->save();
             } finally {
                 self::$writing = false;
             }
 
-            return $this->record($report, $actor, $from, $to, $reason);
+            // The caller's instance must reflect the write: resources
+            // serialize $report, not the locked copy.
+            $report->setRawAttributes($locked->getAttributes(), true);
+
+            return $this->record($locked, $actor, $from, $to, $reason);
         });
     }
 

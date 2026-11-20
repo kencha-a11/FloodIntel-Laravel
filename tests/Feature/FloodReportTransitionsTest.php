@@ -10,6 +10,7 @@ use App\Services\FloodReportTransitions;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -222,4 +223,27 @@ it('records an officer override as a second, reasoned row', function () {
         ->and($entries[1]->to_status)->toBe(FloodReportStatus::Returned)
         ->and($entries[1]->user_id)->toBe($officer->id)
         ->and($entries[1]->reason)->toBe('Depth reading looks wrong.');
+});
+
+it('rejects a stale transition when another request changed the status first', function () {
+    $staff = User::factory()->staff()->create();
+    $report = FloodReport::factory()->create();
+
+    // Simulate a concurrent request that already moved the report out of
+    // `submitted` (e.g. validated it). The in-memory model still holds the
+    // stale `submitted` status, so without the row lock the reject would
+    // incorrectly succeed against the stale `$from`.
+    DB::table('flood_reports')
+        ->where('id', $report->id)
+        ->update(['status' => FloodReportStatus::Validated->value]);
+
+    $transitions = app(FloodReportTransitions::class);
+
+    expect(fn () => $transitions->reject($report, $staff, 'Already decided.'))
+        ->toThrow(ValidationException::class);
+
+    // No audit row was written for the rejected attempt.
+    expect(FloodReportStatusChange::count())->toBe(0);
+    // The report's status is unchanged by the failed attempt.
+    expect($report->fresh()->status)->toBe(FloodReportStatus::Validated);
 });

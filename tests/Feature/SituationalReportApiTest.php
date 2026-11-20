@@ -241,6 +241,67 @@ it('reproduces the frozen MDRRMO reference specimen', function () {
     }
 });
 
+it('reproduces every static skeleton line of the shipped office reference', function () {
+    // The office's own HTML specimen ships with the system (scripts removed).
+    // Parse it here and demand that the generated document carries each of its
+    // static lines, so the reference itself — not a hand-copied list — is the
+    // authority the suite checks against.
+    $referencePath = resource_path('sitrep/reference/mdrrmo-sitrep-template.html');
+    $fixture = json_decode(
+        file_get_contents(base_path('tests/Fixtures/sitrep-mdrrmo-reference.json')),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+
+    expect(hash_equals($fixture['shipped_sha256'], hash_file('sha256', $referencePath)))->toBeTrue();
+
+    preg_match_all('/<div class="t [^"]*">(.*?)<\/div>/s', file_get_contents($referencePath), $matches);
+
+    // Placeholders, example data, personal casualty columns and the picture
+    // instruction are not skeleton: the generator fills or lawfully omits them.
+    $skip = ['XX', 'MM/DD', 'n/a', 'Sulipan', 'JUAN', 'Southwest Monsoon', 'ATTACH', 'Name', 'Gender', 'Age', 'Address', 'Cause', 'Date /', 'Source/s:', 'AM/NN/PM'];
+
+    Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
+    $event = FloodEvent::factory()->create();
+    $staff = User::factory()->staff()->create();
+
+    $this->travelTo(sitrepApiAt('2026-11-02 10:00:00'));
+
+    $id = $this->withToken(sitrepApiToken($staff))
+        ->postJson('/api/situational-reports', ['event_id' => $event->id])
+        ->json('data.id');
+
+    $html = $this->withToken(sitrepApiToken($staff))
+        ->get("/api/situational-reports/{$id}/document")
+        ->assertOk()
+        ->getContent();
+
+    // Compare text, not markup: the reference packs each memorandum row into
+    // one text run, while the preview splits label/colon/value across spans.
+    $text = preg_replace('/<(style|script)\b.*?<\/\1>/s', '', $html);
+    $flat = preg_replace('/\s+/', '', html_entity_decode(strip_tags($text)));
+    $checked = 0;
+
+    foreach ($matches[1] as $raw) {
+        $line = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($raw))));
+
+        if ($line === '' || in_array($line, ['iv.', '1.'], true)) {
+            continue;
+        }
+
+        foreach ($skip as $marker) {
+            if (str_contains($line, $marker)) {
+                continue 2;
+            }
+        }
+
+        expect($flat)->toContain(preg_replace('/\s+/', '', $line));
+        $checked++;
+    }
+
+    expect($checked)->toBeGreaterThan(60);
+});
+
 it('downloads a DOCX built from the same frozen snapshot', function () {
     Barangay::factory()->create(['name' => 'Balucuc', 'code' => 'PH0305402001']);
     $event = FloodEvent::factory()->create();
